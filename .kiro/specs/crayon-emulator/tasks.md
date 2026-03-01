@@ -149,37 +149,37 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random valid instruction byte sequences; disassemble; verify valid mnemonic produced
     - **Validates: Requirements 15.5**
 
-- [-] 4. Checkpoint — CPU instruction tests passing
+- [x] 4. Checkpoint — CPU instruction tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Milestone 2 — Memory map + PIA for basic I/O
-  - [ ] 5.1 Implement MO5 MemorySystem address decoding
+- [x] 5. Milestone 2 — Memory map + PIA for basic I/O
+  - [x] 5.1 Implement MO5 MemorySystem address decoding
     - Implement `read()` and `write()` with address decoding: Video RAM (0x0000-0x3FFF), user RAM (0x4000-0x9FFF), I/O space (0xA000-0xA7FF), reserved (0xA800-0xBFFF returns 0xFF), BASIC ROM (0xC000-0xEFFF), Monitor ROM (0xF000-0xFFFF)
     - Implement ROM write-ignore behavior for 0xC000-0xFFFF
     - Implement `get_pixel_ram()` and `get_color_ram()` for direct VRAM access by GateArray
     - _Requirements: 4.1, 4.4, 4.8, 4.9_
-  - [ ] 5.2 Implement ROM loading
+  - [x] 5.2 Implement ROM loading
     - Implement `load_basic_rom()` to load 12KB BASIC ROM into 0xC000-0xEFFF (from file path or raw data)
     - Implement `load_monitor_rom()` to load 4KB Monitor ROM into 0xF000-0xFFFF including reset/interrupt vectors
     - Return `Result<void>` errors for missing files or wrong sizes
     - _Requirements: 4.5, 4.6_
-  - [ ] 5.3 Implement cartridge mapping
+  - [x] 5.3 Implement cartridge mapping
     - Implement `load_cartridge()`, `insert_cartridge()`, `remove_cartridge()`
     - When cartridge is inserted, map cartridge ROM into 0x6000-0x9FFF replacing user RAM
     - When cartridge is removed, restore user RAM access at 0x6000-0x9FFF
     - _Requirements: 4.7_
-  - [ ] 5.4 Implement PIA MC6821 register access
+  - [x] 5.4 Implement PIA MC6821 register access
     - Implement `read_register()` and `write_register()` for registers 0-3 (mirrored in I/O space)
     - Implement DDR/DR access routing: when control register bit 2 is clear, access DDR; when set, access DR
     - Implement data register masking: read returns `(output_latch AND DDR) OR (input_pins AND NOT DDR)`
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
-  - [ ] 5.5 Implement PIA interrupt handling and vsync
+  - [x] 5.5 Implement PIA interrupt handling and vsync
     - Implement `signal_vsync()`: set interrupt flag, assert IRQ to CPU if interrupt enable bit is set
     - Implement `signal_lightpen()`: set CB1 interrupt flag
     - Implement control register read: return interrupt flags in bits 6/7, clear them on read
     - Implement `irq_active()` and `firq_active()` based on flag and enable bit state
     - _Requirements: 5.5, 5.8, 5.9_
-  - [ ] 5.6 Wire MemorySystem I/O routing to PIA
+  - [x] 5.6 Wire MemorySystem I/O routing to PIA
     - Route reads/writes at 0xA000-0xA7FF through `MemorySystem` to `PIA::read_register()` / `PIA::write_register()`
     - Map PIA registers at their MO5-specific addresses within the I/O space
     - Connect PIA to peripherals via `set_input_handler()`, `set_cassette()`, `set_light_pen()`, `set_audio()`
@@ -221,7 +221,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random cartridge ROM data; insert cartridge; verify reads from 0x6000-0x9FFF return cartridge data; remove; verify user RAM restored
     - **Validates: Requirements 4.7**
 
-- [ ] 6. Checkpoint — Memory map and PIA tests passing
+- [-] 6. Checkpoint — Memory map and PIA tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Milestone 3 — Video gate array (bitmap rendering)

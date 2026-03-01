@@ -14,8 +14,9 @@ uint8_t PIA::read_register(uint8_t reg) {
     switch (reg & 0x03) {
         case 0: // Port A data/direction
             if (state_.cra & 0x04) {
-                // Data register — keyboard column read
-                uint8_t data = state_.input_pins_a;
+                // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
+                uint8_t data = (state_.output_latch_a & state_.ddra) |
+                               (state_.input_pins_a & ~state_.ddra);
                 state_.irqa1_flag = false;
                 state_.irqa2_flag = false;
                 return data;
@@ -25,7 +26,9 @@ uint8_t PIA::read_register(uint8_t reg) {
             return state_.cra | (state_.irqa1_flag ? 0x80 : 0) | (state_.irqa2_flag ? 0x40 : 0);
         case 2: // Port B data/direction
             if (state_.crb & 0x04) {
-                uint8_t data = state_.input_pins_b;
+                // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
+                uint8_t data = (state_.output_latch_b & state_.ddrb) |
+                               (state_.input_pins_b & ~state_.ddrb);
                 state_.irqb1_flag = false;
                 state_.irqb2_flag = false;
                 return data;
