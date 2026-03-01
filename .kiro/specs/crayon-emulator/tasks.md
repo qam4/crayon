@@ -221,22 +221,22 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random cartridge ROM data; insert cartridge; verify reads from 0x6000-0x9FFF return cartridge data; remove; verify user RAM restored
     - **Validates: Requirements 4.7**
 
-- [-] 6. Checkpoint — Memory map and PIA tests passing
+- [x] 6. Checkpoint — Memory map and PIA tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Milestone 3 — Video gate array (bitmap rendering)
-  - [ ] 7.1 Implement GateArray forme/fond rendering pipeline
+- [x] 7. Milestone 3 — Video gate array (bitmap rendering)
+  - [x] 7.1 Implement GateArray forme/fond rendering pipeline
     - Implement `render_frame()` that reads 8KB pixel data (0x0000-0x1FFF) and 8KB color attributes (0x2000-0x3FFF)
     - For each 8-pixel block: extract pixel byte and color byte, split color byte into forme (high nibble) and fond (low nibble)
     - For each pixel: if bit is 1, use forme palette color; if bit is 0, use fond palette color
     - Output 320x200 RGBA pixels to the framebuffer using the MO5 16-color palette
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.8_
-  - [ ] 7.2 Implement GateArray timing signals
+  - [x] 7.2 Implement GateArray timing signals
     - Implement vsync generation: set `vsync_triggered()` flag after rendering a complete frame
     - Implement `clear_vsync()` for PIA to acknowledge the signal
     - Wire vsync signal from GateArray to PIA via `PIA::signal_vsync()`
     - _Requirements: 6.7, 6.9, 6.10_
-  - [ ] 7.3 Implement GateArray state serialization
+  - [x] 7.3 Implement GateArray state serialization
     - Implement `get_state()` / `set_state()` for save state support
     - Serialize beam position, frame number, vsync flag, border color
     - _Requirements: 12.5_
@@ -245,7 +245,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random 8KB pixel and color buffers; render; verify each pixel maps to correct palette color based on pixel bit and attribute nibbles
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.6, 6.9, 6.10**
 
-- [ ] 8. Checkpoint — Video rendering tests passing
+- [-] 8. Checkpoint — Video rendering tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt

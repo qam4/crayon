@@ -31,25 +31,7 @@ public:
     GateArrayState get_state() const;
     void set_state(const GateArrayState& state);
 
-    // MO5 16-color palette (fixed, from design document)
-    static constexpr uint32_t PALETTE[16] = {
-        0x000000FF, // 0: black
-        0xFF0000FF, // 1: red
-        0x00FF00FF, // 2: green
-        0xFFFF00FF, // 3: yellow
-        0x0000FFFF, // 4: blue
-        0xFF00FFFF, // 5: magenta
-        0x00FFFFFF, // 6: cyan
-        0xFFFFFFFF, // 7: white
-        0x808080FF, // 8: grey
-        0xFF8080FF, // 9: light red
-        0x80FF80FF, // 10: light green
-        0xFFFF80FF, // 11: light yellow
-        0x8080FFFF, // 12: light blue
-        0xFF80FFFF, // 13: light magenta
-        0x80FFFFFF, // 14: light cyan
-        0xFF8000FF  // 15: orange
-    };
+    // MO5 16-color palette — see MO5_PALETTE_RGBA in types.h for the actual values
 
 private:
     GateArrayState state_;
