@@ -2,6 +2,8 @@
 #include "emulator_core.h"
 #include "types.h"
 #include <cstring>
+#include <cstdio>
+#include <fstream>
 #include <memory>
 
 static std::unique_ptr<crayon::EmulatorCore> g_emulator;
@@ -99,9 +101,40 @@ RETRO_API bool retro_load_game_special(unsigned, const struct retro_game_info*, 
 RETRO_API void retro_unload_game(void) { g_emulator.reset(); }
 RETRO_API unsigned retro_get_region(void) { return RETRO_REGION_PAL; }
 
-RETRO_API size_t retro_serialize_size(void) { return 0; }
-RETRO_API bool retro_serialize(void*, size_t) { return false; }
-RETRO_API bool retro_unserialize(const void*, size_t) { return false; }
+RETRO_API size_t retro_serialize_size(void) {
+    // Conservative estimate: CPU + memory + PIA + gate array + audio + input + light pen + cassette
+    // 16KB VRAM + 24KB RAM + overhead ≈ 64KB should be plenty
+    return 65536;
+}
+
+RETRO_API bool retro_serialize(void* data, size_t size) {
+    if (!g_emulator || size < retro_serialize_size()) return false;
+    // Save to a temp file, read it back into the buffer
+    // TODO: Implement in-memory serialization for better performance
+    std::string tmp = "crayon_retro_state.tmp";
+    auto result = g_emulator->save_state(tmp);
+    if (result.is_err()) return false;
+    std::ifstream f(tmp, std::ios::binary | std::ios::ate);
+    if (!f) return false;
+    auto fsize = f.tellg();
+    if (static_cast<size_t>(fsize) > size) return false;
+    f.seekg(0);
+    f.read(static_cast<char*>(data), fsize);
+    std::remove(tmp.c_str());
+    return true;
+}
+
+RETRO_API bool retro_unserialize(const void* data, size_t size) {
+    if (!g_emulator || !data || size == 0) return false;
+    std::string tmp = "crayon_retro_state.tmp";
+    std::ofstream f(tmp, std::ios::binary);
+    if (!f) return false;
+    f.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
+    f.close();
+    auto result = g_emulator->load_state(tmp);
+    std::remove(tmp.c_str());
+    return result.is_ok();
+}
 
 RETRO_API void retro_cheat_reset(void) {}
 RETRO_API void retro_cheat_set(unsigned, bool, const char*) {}

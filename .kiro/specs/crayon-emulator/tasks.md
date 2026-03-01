@@ -248,7 +248,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
 - [x] 8. Checkpoint — Video rendering tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt
+- [x] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt
   - [x] 9.1 Implement MasterClock timing
     - Implement `tick()` advancing cycle counter, tracking scanline position
     - Implement `cpu_ready()` returning true each cycle (1 MHz flat clock)
@@ -287,7 +287,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
 - [x] 10. Checkpoint — Emulator boots to BASIC prompt
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Milestone 5 — Cassette loading (K7 format)
+- [x] 11. Milestone 5 — Cassette loading (K7 format)
   - [x] 11.1 Implement K7 file format parser
     - Implement `load_k7()`: parse K7 file containing leader sequences, sync bytes, data blocks with headers and checksums
     - Validate K7 file structure and return `Result<void>` errors for malformed files
@@ -316,7 +316,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random data byte sequences; write via cassette output; read back via cassette input; verify identical
     - **Validates: Requirements 10.6**
 
-- [ ] 12. Milestone 6 — Keyboard input
+- [x] 12. Milestone 6 — Keyboard input
   - [x] 12.1 Implement MO5 chiclet keyboard matrix scanning
     - Implement `read_keyboard_row()`: given a column strobe value, return the row state reflecting pressed keys in that column
     - Implement `set_key_state()` for both (row, col) and `MO5Key` enum variants
@@ -337,21 +337,21 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random sets of pressed keys and column strobe values; verify returned row state correctly reflects exactly which keys in that column are pressed
     - **Validates: Requirements 8.2, 8.4**
 
-- [ ] 13. Checkpoint — Cassette and keyboard tests passing
+- [x] 13. Checkpoint — Cassette and keyboard tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. Milestone 7 — Light pen emulation (crayon optique)
-  - [ ] 14.1 Implement light pen coordinate translation
+- [x] 14. Milestone 7 — Light pen emulation (crayon optique)
+  - [x] 14.1 Implement light pen coordinate translation
     - Implement `set_mouse_position()`: translate host mouse position and window dimensions to MO5 screen coordinates (0-319, 0-199)
     - Set `detected_` to true if mouse is within the emulated display area, false otherwise
     - _Requirements: 9.1, 9.5_
-  - [ ] 14.2 Implement light pen strobe and button signaling
+  - [x] 14.2 Implement light pen strobe and button signaling
     - Implement `update()`: compare light pen MO5 coordinates with current beam position; generate strobe signal when beam reaches the light pen position
     - Implement `set_button_pressed()`: track mouse button state for light pen activation
     - Wire strobe signal to PIA CB1 via `PIA::signal_lightpen()`
     - Provide screen position to MO5 software through PIA registers
     - _Requirements: 9.2, 9.3, 9.4_
-  - [ ] 14.3 Implement light pen state serialization
+  - [x] 14.3 Implement light pen state serialization
     - Implement `get_state()` / `set_state()` for save state support
     - _Requirements: 12.5_
   - [ ]* 14.4 Write property tests for light pen coordinate translation
@@ -359,14 +359,14 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random mouse positions and window dimensions; verify proportionally correct MO5 coordinates when inside display area, and no detection when outside
     - **Validates: Requirements 9.1, 9.5**
 
-- [ ] 15. Milestone 8 — Libretro core, audio, frontend, and debugger
-  - [ ] 15.1 Implement AudioSystem 1-bit buzzer
+- [x] 15. Milestone 8 — Libretro core, audio, frontend, and debugger
+  - [x] 15.1 Implement AudioSystem 1-bit buzzer
     - Implement `set_buzzer_bit()`: toggle buzzer state, producing square wave output
     - Implement `generate_samples()`: resample 1-bit buzzer output to host sample rate (48000Hz) using the ring buffer
     - Implement `fill_audio_buffer()`: copy samples from ring buffer to output buffer; output silence on underflow
     - Implement `get_state()` / `set_state()` for save state support
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
-  - [ ] 15.2 Adapt SDL2 frontend for MO5
+  - [x] 15.2 Adapt SDL2 frontend for MO5
     - Adapt `src/frontend_sdl.cpp` to display the 320x200 MO5 framebuffer scaled to configurable integer multiple (default 3x: 960x600)
     - Use SDL2 hardware-accelerated rendering with VSync enabled
     - Capture SDL2 keyboard events and translate to MO5 keyboard matrix state via InputHandler
@@ -375,7 +375,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Implement Escape key to toggle pause, window close for clean shutdown
     - Throttle execution to maintain correct 50Hz frame rate
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
-  - [ ] 15.3 Adapt Libretro core for MO5
+  - [x] 15.3 Adapt Libretro core for MO5
     - Adapt `src/libretro.cpp` to wrap `crayon::EmulatorCore` instead of Videopac EmulatorCore
     - Implement all standard libretro API functions: `retro_init`, `retro_deinit`, `retro_run`, `retro_load_game`, `retro_unload_game`, `retro_serialize`, `retro_unserialize`, `retro_get_system_info`, `retro_get_system_av_info`
     - Report MO5 system info: core name "crayon", extensions "k7,rom", geometry 320x200
@@ -383,11 +383,11 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Translate libretro input callbacks to MO5 keyboard matrix and LightPen coordinates
     - Support save state via `retro_serialize` / `retro_unserialize` using SaveStateManager
     - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8_
-  - [ ] 15.4 Add Libretro shared library build target to CMake
+  - [x] 15.4 Add Libretro shared library build target to CMake
     - Add CMake target producing `crayon_libretro.so` (Linux), `crayon_libretro.dll` (Windows), `crayon_libretro.dylib` (macOS)
     - Ensure CI/CD pipeline builds the libretro shared library as a build artifact
     - _Requirements: 14.8, 16.4_
-  - [ ] 15.5 Adapt ImGui debugger UI for MO5
+  - [x] 15.5 Adapt ImGui debugger UI for MO5
     - Adapt `src/debugger_ui.cpp` to display 6809E registers (A, B, D, X, Y, U, S, PC, DP, CC) with real-time updates
     - Display CC flags (E, F, H, I, N, Z, V, C) individually with labeled indicators
     - Implement memory viewer with MO5 64KB address space and region labels (Video RAM, User RAM, I/O, ROM)
@@ -396,7 +396,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Display PIA register state (DRA, DRB, DDRA, DDRB, CRA, CRB) and GateArray state
     - Toggle debugger pauses emulation and shows current CPU/memory state
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10_
-  - [ ] 15.6 Adapt save state framework for MO5 components
+  - [x] 15.6 Adapt save state framework for MO5 components
     - Adapt `include/savestate.h` and `src/savestate.cpp` to serialize/deserialize all MO5 component states
     - Include version field and checksum for integrity validation
     - Return errors on version mismatch or checksum failure during load
@@ -411,7 +411,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Test `retro_serialize` / `retro_unserialize` round-trip
     - _Requirements: 14.2, 14.3, 14.4, 14.7_
 
-- [ ] 16. Final checkpoint — Full integration
+- [-] 16. Final checkpoint — Full integration
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

@@ -85,6 +85,19 @@ void SDLFrontend::process_input() {
             case SDL_QUIT: running_ = false; break;
             case SDL_KEYDOWN: handle_keyboard_event(event.key); break;
             case SDL_KEYUP: handle_keyboard_event(event.key); break;
+            case SDL_MOUSEMOTION: {
+                int w, h;
+                SDL_GetWindowSize(window_, &w, &h);
+                emulator_->get_light_pen().set_mouse_position(
+                    event.motion.x, event.motion.y, w, h);
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN:
+                emulator_->get_light_pen().set_button_pressed(true);
+                break;
+            case SDL_MOUSEBUTTONUP:
+                emulator_->get_light_pen().set_button_pressed(false);
+                break;
         }
     }
 }
@@ -144,6 +157,12 @@ void SDLFrontend::cleanup_audio() {
 
 void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
     bool pressed = (event.type == SDL_KEYDOWN);
+    // Escape = toggle pause
+    if (pressed && event.keysym.sym == SDLK_ESCAPE) {
+        paused_ = !paused_;
+        emulator_->set_paused(paused_);
+        return;
+    }
     // F5 = debugger toggle
     if (pressed && event.keysym.sym == SDLK_F5 && imgui_debugger_ui_) {
         if (imgui_debugger_ui_->is_visible()) imgui_debugger_ui_->hide();
