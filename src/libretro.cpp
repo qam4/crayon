@@ -111,7 +111,7 @@ RETRO_API bool retro_serialize(void* data, size_t size) {
     if (!g_emulator || size < retro_serialize_size()) return false;
     // Save to a temp file, read it back into the buffer
     // TODO: Implement in-memory serialization for better performance
-    std::string tmp = "crayon_retro_state.tmp";
+    std::string tmp = "userdata/crayon_retro_state.tmp";
     auto result = g_emulator->save_state(tmp);
     if (result.is_err()) return false;
     std::ifstream f(tmp, std::ios::binary | std::ios::ate);
@@ -126,7 +126,7 @@ RETRO_API bool retro_serialize(void* data, size_t size) {
 
 RETRO_API bool retro_unserialize(const void* data, size_t size) {
     if (!g_emulator || !data || size == 0) return false;
-    std::string tmp = "crayon_retro_state.tmp";
+    std::string tmp = "userdata/crayon_retro_state.tmp";
     std::ofstream f(tmp, std::ios::binary);
     if (!f) return false;
     f.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));

@@ -68,7 +68,7 @@ crayon::Result<void> SaveStateManagerUI::capture_thumbnail(const std::string& /*
 }
 
 bool SaveStateManagerUI::ensure_saves_directory() {
-    saves_dir_ = "saves";
+    saves_dir_ = "userdata/saves";
     if (!std::filesystem::exists(saves_dir_))
         std::filesystem::create_directories(saves_dir_);
     return std::filesystem::exists(saves_dir_);

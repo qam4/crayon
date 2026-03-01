@@ -2,16 +2,19 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <filesystem>
 
-ConfigManager::ConfigManager() : recent_cartridges_(10) {}
+ConfigManager::ConfigManager() : recent_cartridges_(10) {
+    // Ensure userdata directory exists
+    std::filesystem::create_directories("userdata");
+}
 ConfigManager::~ConfigManager() = default;
 
 bool ConfigManager::load() { return parse_ini_file(get_config_path()); }
 bool ConfigManager::save() { return write_ini_file(get_config_path()); }
 
 std::string ConfigManager::get_config_path() const {
-    // TODO: Use SDL_GetPrefPath for proper platform path
-    return "crayon_config.ini";
+    return "userdata/config.ini";
 }
 
 std::string ConfigManager::get_last_cartridge_directory() const { return get_value("General", "last_cartridge_dir", ""); }

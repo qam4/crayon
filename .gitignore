@@ -2,6 +2,7 @@ build/
 debug/
 roms/
 screenshots/
+userdata/
 *.exe
 *.dll
 *.so

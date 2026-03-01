@@ -46,8 +46,8 @@ int main() {
         pixels[i * 4 + 2] = (c >> 8) & 0xFF;
         pixels[i * 4 + 3] = c & 0xFF;
     }
-    stbi_write_png("debug/boot_diag.png", 320, 200, 4, pixels.data(), 320 * 4);
-    std::cout << "\nScreenshot: debug/boot_diag.png\n";
+    stbi_write_png("screenshots/boot_diag.png", 320, 200, 4, pixels.data(), 320 * 4);
+    std::cout << "\nScreenshot: screenshots/boot_diag.png\n";
 
     return 0;
 }

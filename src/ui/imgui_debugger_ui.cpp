@@ -51,6 +51,8 @@ bool ImGuiDebuggerUI::initialize() {
     IMGUI_CHECKVERSION();
     imgui_context_ = ImGui::CreateContext();
     ImGui::SetCurrentContext(imgui_context_);
+    // Store imgui.ini in userdata/ alongside config and saves
+    ImGui::GetIO().IniFilename = "userdata/imgui.ini";
     ImGui::StyleColorsDark();
     ImGui_ImplSDL2_InitForSDLRenderer(window_, renderer_);
     ImGui_ImplSDLRenderer2_Init(renderer_);
