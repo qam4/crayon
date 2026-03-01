@@ -1,4 +1,5 @@
 #include "emulator_core.h"
+#include "savestate.h"
 #include "debugger.h"
 
 namespace crayon {
@@ -73,14 +74,34 @@ void EmulatorCore::get_audio_buffer(int16* buffer, size_t samples) {
     audio_.fill_audio_buffer(buffer, samples);
 }
 
-Result<void> EmulatorCore::save_state(const std::string& /*path*/) {
-    // TODO: Implement via SaveStateManager
-    return Result<void>::err("Save state not yet implemented");
+Result<void> EmulatorCore::save_state(const std::string& path) {
+    SaveState state;
+    state.cpu_state = cpu_.get_state();
+    state.gate_array_state = gate_array_.get_state();
+    state.memory_state = memory_.get_state();
+    state.pia_state = pia_.get_state();
+    state.audio_state = audio_.get_state();
+    state.input_state = input_.get_state();
+    state.light_pen_state = light_pen_.get_state();
+    state.cassette_state = cassette_.get_state();
+    state.frame_count = frame_count_;
+    return SaveStateManager::save(path, state);
 }
 
-Result<void> EmulatorCore::load_state(const std::string& /*path*/) {
-    // TODO: Implement via SaveStateManager
-    return Result<void>::err("Load state not yet implemented");
+Result<void> EmulatorCore::load_state(const std::string& path) {
+    auto result = SaveStateManager::load(path);
+    if (result.is_err()) return Result<void>::err(result.error);
+    auto state = *result.value;
+    cpu_.set_state(state.cpu_state);
+    gate_array_.set_state(state.gate_array_state);
+    memory_.set_state(state.memory_state);
+    pia_.set_state(state.pia_state);
+    audio_.set_state(state.audio_state);
+    input_.set_state(state.input_state);
+    light_pen_.set_state(state.light_pen_state);
+    cassette_.set_state(state.cassette_state);
+    frame_count_ = state.frame_count;
+    return Result<void>::ok();
 }
 
 void EmulatorCore::handle_interrupts() {

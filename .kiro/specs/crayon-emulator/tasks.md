@@ -245,28 +245,28 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random 8KB pixel and color buffers; render; verify each pixel maps to correct palette color based on pixel bit and attribute nibbles
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.6, 6.9, 6.10**
 
-- [ ] 8. Checkpoint — Video rendering tests passing
+- [x] 8. Checkpoint — Video rendering tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt
-  - [ ] 9.1 Implement MasterClock timing
+  - [x] 9.1 Implement MasterClock timing
     - Implement `tick()` advancing cycle counter, tracking scanline position
     - Implement `cpu_ready()` returning true each cycle (1 MHz flat clock)
     - Implement `frame_complete()` returning true after 20,000 cycles (1 MHz / 50Hz)
     - Implement E/Q clock phase tracking for the externally clocked 6809E
     - _Requirements: 11.1, 11.2, 11.3, 11.4_
-  - [ ] 9.2 Implement EmulatorCore run_frame() loop
+  - [x] 9.2 Implement EmulatorCore run_frame() loop
     - Implement `run_frame()`: loop for 20,000 CPU cycles, calling `cpu_.execute_instruction()` and accumulating cycles
     - After CPU loop: call `gate_array_.render_frame()` with VRAM pointers
     - After render: signal vsync to PIA, handle PIA→CPU interrupt routing
     - Generate audio samples proportional to cycles executed
     - _Requirements: 12.2, 11.4_
-  - [ ] 9.3 Implement EmulatorCore reset and ROM boot sequence
+  - [x] 9.3 Implement EmulatorCore reset and ROM boot sequence
     - Implement `reset()`: reset all components, load reset vector from 0xFFFE-0xFFFF into PC
     - Implement `load_roms()`: load BASIC ROM and Monitor ROM, return errors if files missing or wrong size
     - Verify the emulator boots to the BASIC 1.0 prompt when both ROMs are loaded and no cartridge is inserted
     - _Requirements: 12.3, 12.4_
-  - [ ] 9.4 Implement save state serialization and deserialization
+  - [x] 9.4 Implement save state serialization and deserialization
     - Implement `save_state()`: collect state from all components into `SaveState` struct, serialize to file with version and checksum
     - Implement `load_state()`: deserialize from file, verify version and checksum, restore all component states
     - Use the adapted `SaveStateManager` pattern from the Videopac codebase
