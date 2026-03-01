@@ -14,6 +14,12 @@ uint8_t PIA::read_register(uint8_t reg) {
     switch (reg & 0x03) {
         case 0: // Port A data/direction
             if (state_.cra & 0x04) {
+                // Update input pins before reading
+                // Bit 7: cassette data input
+                if (cassette_ && cassette_->is_playing()) {
+                    bool bit = cassette_->read_data_bit();
+                    state_.input_pins_a = (state_.input_pins_a & 0x7F) | (bit ? 0x80 : 0x00);
+                }
                 // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
                 uint8_t data = (state_.output_latch_a & state_.ddra) |
                                (state_.input_pins_a & ~state_.ddra);
@@ -26,6 +32,10 @@ uint8_t PIA::read_register(uint8_t reg) {
             return state_.cra | (state_.irqa1_flag ? 0x80 : 0) | (state_.irqa2_flag ? 0x40 : 0);
         case 2: // Port B data/direction
             if (state_.crb & 0x04) {
+                // Update input pins: keyboard row data based on column strobe
+                if (input_) {
+                    state_.input_pins_b = input_->read_keyboard_row(state_.output_latch_b);
+                }
                 // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
                 uint8_t data = (state_.output_latch_b & state_.ddrb) |
                                (state_.input_pins_b & ~state_.ddrb);
@@ -46,8 +56,11 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
             if (state_.cra & 0x04) {
                 state_.output_latch_a = value;
                 state_.dra = (value & state_.ddra) | (state_.input_pins_a & ~state_.ddra);
-                // Buzzer bit is bit 0 of port A output
+                // Bit 0: buzzer output / cassette write
                 if (audio_) audio_->set_buzzer_bit(value & 0x01);
+                if (cassette_ && cassette_->is_recording()) {
+                    cassette_->write_data_bit((value & 0x01) != 0);
+                }
             } else {
                 state_.ddra = value;
             }

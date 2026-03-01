@@ -41,8 +41,21 @@ bool CassetteInterface::read_data_bit() {
 }
 
 void CassetteInterface::write_data_bit(bool bit) {
-    // TODO: Implement recording
-    (void)bit;
+    if (!state_.recording) {
+        state_.recording = true;
+        state_.playing = false;
+    }
+    // Pack bits into bytes, MSB first
+    if (state_.bit_position == 0) {
+        state_.record_buffer.push_back(0);
+    }
+    if (bit) {
+        state_.record_buffer.back() |= (1 << (7 - state_.bit_position));
+    }
+    state_.bit_position++;
+    if (state_.bit_position >= 8) {
+        state_.bit_position = 0;
+    }
 }
 
 bool CassetteInterface::is_playing() const { return state_.playing; }

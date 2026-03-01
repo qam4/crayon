@@ -284,26 +284,26 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Load various Monitor ROMs with different reset vectors; reset; verify PC equals value at 0xFFFE-0xFFFF
     - **Validates: Requirements 12.3**
 
-- [ ] 10. Checkpoint — Emulator boots to BASIC prompt
+- [x] 10. Checkpoint — Emulator boots to BASIC prompt
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. Milestone 5 — Cassette loading (K7 format)
-  - [ ] 11.1 Implement K7 file format parser
+  - [x] 11.1 Implement K7 file format parser
     - Implement `load_k7()`: parse K7 file containing leader sequences, sync bytes, data blocks with headers and checksums
     - Validate K7 file structure and return `Result<void>` errors for malformed files
     - Store parsed data in `k7_data_` vector for sequential playback
     - _Requirements: 10.1, 10.4_
-  - [ ] 11.2 Implement K7 file serializer
+  - [x] 11.2 Implement K7 file serializer
     - Implement `save_k7()`: serialize `record_buffer_` into valid K7 format with leader, sync, headers, data blocks, and checksums
     - Write the serialized data to a file
     - _Requirements: 10.5_
-  - [ ] 11.3 Implement cassette playback and recording through PIA
+  - [x] 11.3 Implement cassette playback and recording through PIA
     - Implement `play()`, `stop()`, `rewind()` transport controls
     - Implement `read_data_bit()`: return next bit from K7 data stream, advancing read position
     - Implement `write_data_bit()`: capture bit into record buffer during SAVE operations
     - Wire cassette data lines through PIA Port A/B for LOAD and SAVE commands
     - _Requirements: 10.2, 10.3_
-  - [ ] 11.4 Implement cassette state serialization
+  - [x] 11.4 Implement cassette state serialization
     - Implement `get_state()` / `set_state()` for save state support
     - Serialize K7 data, read position, bit position, playing/recording state, record buffer
     - _Requirements: 12.5_
@@ -317,17 +317,17 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - **Validates: Requirements 10.6**
 
 - [ ] 12. Milestone 6 — Keyboard input
-  - [ ] 12.1 Implement MO5 chiclet keyboard matrix scanning
+  - [x] 12.1 Implement MO5 chiclet keyboard matrix scanning
     - Implement `read_keyboard_row()`: given a column strobe value, return the row state reflecting pressed keys in that column
     - Implement `set_key_state()` for both (row, col) and `MO5Key` enum variants
     - Support simultaneous key presses by correctly reporting multiple active rows
     - Return all row bits inactive when no key is pressed in the scanned column
     - _Requirements: 8.1, 8.2, 8.4, 8.5_
-  - [ ] 12.2 Implement host-to-MO5 key mapping
+  - [x] 12.2 Implement host-to-MO5 key mapping
     - Implement `map_host_key()` and `process_host_key()` to translate SDL2 keycodes to MO5 matrix positions
     - Create default key mapping covering all MO5 keys including SHIFT, ENTER, STOP, CNT, ACC, and cursor keys
     - _Requirements: 8.3_
-  - [ ] 12.3 Wire keyboard scanning through PIA
+  - [x] 12.3 Wire keyboard scanning through PIA
     - Connect PIA Port A column strobe output to `InputHandler::read_keyboard_row()`
     - Connect keyboard row input to PIA Port B input pins
     - Verify keyboard scanning works end-to-end: CPU writes column strobe to PIA, reads row state back
