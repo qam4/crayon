@@ -13,6 +13,7 @@ EmulatorCore::EmulatorCore(const Configuration& config) : config_(config) {
     pia_.set_cassette(&cassette_);
     pia_.set_light_pen(&light_pen_);
     pia_.set_audio(&audio_);
+    pia_.set_memory(&memory_);
 }
 
 Result<void> EmulatorCore::load_roms(const std::string& basic_path,
@@ -105,8 +106,18 @@ Result<void> EmulatorCore::load_state(const std::string& path) {
 }
 
 void EmulatorCore::handle_interrupts() {
+    bool firq_was_active = pia_.firq_active();
     cpu_.assert_irq(pia_.irq_active());
-    cpu_.assert_firq(pia_.firq_active());
+    cpu_.assert_firq(firq_was_active);
+
+    // If FIRQ line was just asserted and CPU will take it, acknowledge
+    // the vsync interrupt so it doesn't re-fire every instruction.
+    // The CPU's check_interrupts() (called at end of execute_instruction)
+    // will service the FIRQ on the next cycle. We clear the PIA flag now
+    // so firq_active() returns false on subsequent calls this frame.
+    if (firq_was_active) {
+        pia_.acknowledge_firq();
+    }
 }
 
 } // namespace crayon

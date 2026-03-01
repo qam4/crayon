@@ -411,7 +411,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Test `retro_serialize` / `retro_unserialize` round-trip
     - _Requirements: 14.2, 14.3, 14.4, 14.7_
 
-- [-] 16. Final checkpoint — Full integration
+- [x] 16. Final checkpoint — Full integration
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

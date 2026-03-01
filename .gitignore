@@ -1,4 +1,7 @@
-build*/
+build/
+debug/
+roms/
+screenshots/
 *.exe
 *.dll
 *.so

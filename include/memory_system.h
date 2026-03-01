@@ -12,14 +12,22 @@ class PIA;
 class GateArray;
 
 struct MO5MemoryState {
-    uint8_t video_ram[0x4000] = {};     // 16KB: pixel + color
-    uint8_t user_ram[0x6000] = {};      // 24KB: 0x4000-0x9FFF
+    // MO5 video RAM: two 8KB pages
+    // Page 0 (0x0000-0x1FFF): fond/color attributes (fg/bg nibbles per 8-pixel block)
+    // Page 1 (0x2000-0x3FFF): forme/shape pixel bitmaps
+    // 0xA7C0 bit 0 selects which page is visible at CPU address 0x0000-0x1FFF:
+    //   bit 0 = 0 → page 0 (fond/color)
+    //   bit 0 = 1 → page 1 (forme/shape)
+    uint8_t video_ram[0x4000] = {};     // 16KB: page0 (fond/color) + page1 (forme/shape)
+    uint8_t user_ram[0x8000] = {};      // 32KB: 0x2000-0x9FFF
     uint8_t basic_rom[0x3000] = {};     // 12KB: 0xC000-0xEFFF
     uint8_t monitor_rom[0x1000] = {};   // 4KB: 0xF000-0xFFFF
     std::vector<uint8_t> cartridge_rom;
     bool cartridge_inserted = false;
     bool basic_rom_loaded = false;
     bool monitor_rom_loaded = false;
+    uint8_t video_page = 0;             // 0=fond(color), 1=forme(shape) — bit 0 of gate array reg
+    uint8_t gate_array_reg = 0;         // 0xA7C0 system register (bits 0-4,6 writable)
 };
 
 class MemorySystem {
@@ -39,6 +47,9 @@ public:
 
     const uint8_t* get_pixel_ram() const;
     const uint8_t* get_color_ram() const;
+
+    void set_video_page(uint8_t page);
+    uint8_t get_video_page() const;
 
     void set_pia(PIA* pia);
     void set_gate_array(GateArray* ga);

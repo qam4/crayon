@@ -17,6 +17,7 @@ void print_usage(const char* program) {
               << "  --cartridge <path> Path to cartridge/K7 file\n"
               << "  --headless         Run without display\n"
               << "  --frames <n>       Run for N frames then exit\n"
+              << "  --screenshot <path> Save PNG screenshot after run (headless)\n"
               << "  --scale <n>        Display scale (1-4, default 2)\n"
               << "  --help             Show this help\n";
 }
@@ -25,6 +26,7 @@ int main(int argc, char* argv[]) {
     crayon::FrontendConfig config;
     bool headless = false;
     int frame_limit = 0;
+    std::string screenshot_path;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -35,6 +37,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--headless") headless = true;
         else if (arg == "--frames" && i + 1 < argc) frame_limit = std::stoi(argv[++i]);
         else if (arg == "--scale" && i + 1 < argc) config.display_scale = std::stoi(argv[++i]);
+        else if (arg == "--screenshot" && i + 1 < argc) screenshot_path = argv[++i];
         else { std::cerr << "Unknown option: " << arg << "\n"; print_usage(argv[0]); return 1; }
     }
 
@@ -61,6 +64,10 @@ int main(int argc, char* argv[]) {
     }
 
     frontend->run();
+    if (!screenshot_path.empty()) {
+        frontend->save_screenshot(screenshot_path);
+        std::cout << "Screenshot saved to " << screenshot_path << "\n";
+    }
     frontend->shutdown();
     return 0;
 }

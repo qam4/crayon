@@ -3,6 +3,7 @@
 #include "cassette_interface.h"
 #include "light_pen.h"
 #include "audio_system.h"
+#include "memory_system.h"
 
 namespace crayon {
 
@@ -12,15 +13,12 @@ void PIA::reset() { state_ = PIAState{}; }
 
 uint8_t PIA::read_register(uint8_t reg) {
     switch (reg & 0x03) {
-        case 0: // Port A data/direction
+        case 0: // Port A data/direction (not used on MO5 — 0xA7C0 is gate array reg)
             if (state_.cra & 0x04) {
-                // Update input pins before reading
-                // Bit 7: cassette data input
                 if (cassette_ && cassette_->is_playing()) {
                     bool bit = cassette_->read_data_bit();
                     state_.input_pins_a = (state_.input_pins_a & 0x7F) | (bit ? 0x80 : 0x00);
                 }
-                // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
                 uint8_t data = (state_.output_latch_a & state_.ddra) |
                                (state_.input_pins_a & ~state_.ddra);
                 state_.irqa1_flag = false;
@@ -32,11 +30,12 @@ uint8_t PIA::read_register(uint8_t reg) {
             return state_.cra | (state_.irqa1_flag ? 0x80 : 0) | (state_.irqa2_flag ? 0x40 : 0);
         case 2: // Port B data/direction
             if (state_.crb & 0x04) {
-                // Update input pins: keyboard row data based on column strobe
+                // MO5 Port B: keyboard matrix scanning
+                // The output latch selects which key to scan
+                // Input returns key state on bit 7
                 if (input_) {
                     state_.input_pins_b = input_->read_keyboard_row(state_.output_latch_b);
                 }
-                // Data register: (output_latch AND DDR) OR (input_pins AND NOT DDR)
                 uint8_t data = (state_.output_latch_b & state_.ddrb) |
                                (state_.input_pins_b & ~state_.ddrb);
                 state_.irqb1_flag = false;
@@ -82,6 +81,7 @@ void PIA::set_input_handler(InputHandler* input) { input_ = input; }
 void PIA::set_cassette(CassetteInterface* cass) { cassette_ = cass; }
 void PIA::set_light_pen(LightPen* lp) { light_pen_ = lp; }
 void PIA::set_audio(AudioSystem* audio) { audio_ = audio; }
+void PIA::set_memory(MemorySystem* mem) { memory_ = mem; }
 
 bool PIA::irq_active() const {
     return (state_.irqa1_flag && (state_.cra & 0x01)) ||
@@ -95,6 +95,15 @@ bool PIA::firq_active() const {
 
 void PIA::signal_vsync() { state_.irqb1_flag = true; }
 void PIA::signal_lightpen() { state_.irqa1_flag = true; }
+
+void PIA::acknowledge_firq() {
+    // Auto-clear the vsync (CB1) interrupt flag when the CPU takes the FIRQ.
+    // On real hardware, the FIRQ handler reads PIA port B data register to clear
+    // irqb1_flag. During early boot the MO5 ROM's default FIRQ handler is just RTI
+    // (no port B read), so the flag would never clear, causing an infinite FIRQ loop.
+    // This simulates edge-triggered vsync behavior: one FIRQ per frame.
+    state_.irqb1_flag = false;
+}
 
 PIAState PIA::get_state() const { return state_; }
 void PIA::set_state(const PIAState& state) { state_ = state; }

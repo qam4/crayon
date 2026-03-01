@@ -10,6 +10,7 @@ class InputHandler;
 class CassetteInterface;
 class LightPen;
 class AudioSystem;
+class MemorySystem;
 
 struct PIAState {
     uint8_t dra = 0, ddra = 0, cra = 0;
@@ -33,12 +34,14 @@ public:
     void set_cassette(CassetteInterface* cass);
     void set_light_pen(LightPen* lp);
     void set_audio(AudioSystem* audio);
+    void set_memory(MemorySystem* mem);
 
     bool irq_active() const;
     bool firq_active() const;
 
     void signal_vsync();
     void signal_lightpen();
+    void acknowledge_firq();  // Clear vsync flag after CPU takes FIRQ
 
     PIAState get_state() const;
     void set_state(const PIAState& state);
@@ -49,6 +52,7 @@ private:
     CassetteInterface* cassette_ = nullptr;
     LightPen* light_pen_ = nullptr;
     AudioSystem* audio_ = nullptr;
+    MemorySystem* memory_ = nullptr;
 };
 
 } // namespace crayon

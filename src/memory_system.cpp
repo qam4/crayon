@@ -56,33 +56,56 @@ Result<void> MemorySystem::load_cartridge(const uint8_t* data, size_t size) {
 }
 
 uint8_t MemorySystem::read(uint16_t address) {
-    if (address < 0x4000) {
-        // Video RAM: 0x0000-0x1FFF pixel data, 0x2000-0x3FFF color attributes
-        return state_.video_ram[address];
+    if (address < 0x2000) {
+        // Video RAM window: 0x0000-0x1FFF
+        // Page selected by bit 0 of gate array register (0xA7C0)
+        return state_.video_ram[address + (state_.video_page << 13)];
     }
     if (address < 0xA000) {
-        // 0x4000-0x5FFF: always user RAM
-        // 0x6000-0x9FFF: cartridge ROM when inserted, else user RAM
-        if (state_.cartridge_inserted && address >= 0x6000) {
-            uint16_t cart_offset = address - 0x6000;
-            if (cart_offset < state_.cartridge_rom.size())
-                return state_.cartridge_rom[cart_offset];
-            return 0xFF;
-        }
-        return state_.user_ram[address - 0x4000];
+        // User RAM: 0x2000-0x9FFF (32KB)
+        return state_.user_ram[address - 0x2000];
     }
     if (address < 0xA800) {
-        // I/O space — PIA registers at 0xA7C0-0xA7C3
-        if (pia_ && address >= 0xA7C0 && address <= 0xA7C3)
-            return pia_->read_register(address & 0x03);
+        // I/O space: 0xA000-0xA7FF
+        if (address == 0xA7C0) {
+            // Gate array system register — NOT a PIA register on MO5
+            // Bit 7: always 1 (active-low cassette input)
+            // Bit 6: not used
+            // Bit 5: lightpen button (directly from hardware)
+            // Bits 1-4: border color
+            // Bit 0: video page select
+            return state_.gate_array_reg | 0x80;
+        }
+        if (pia_ && address >= 0xA7C1 && address <= 0xA7C3) {
+            // MO5 PIA register mapping (address lines swapped vs standard 6821):
+            //   0xA7C1 → PIA reg 2 (Port B data/DDR — keyboard scan)
+            //   0xA7C2 → PIA reg 1 (CRA)
+            //   0xA7C3 → PIA reg 3 (CRB — vsync interrupt)
+            static constexpr uint8_t mo5_pia_map[4] = {0, 2, 1, 3};
+            return pia_->read_register(mo5_pia_map[address & 0x03]);
+        }
+        return 0xFF;
+    }
+    if (address < 0xB000) {
+        // 0xA800-0xAFFF: extension area
         return 0xFF;
     }
     if (address < 0xC000) {
-        // Reserved: 0xA800-0xBFFF returns 0xFF
+        // 0xB000-0xBFFF: cartridge ROM (4KB)
+        if (state_.cartridge_inserted && !state_.cartridge_rom.empty()) {
+            uint16_t cart_offset = address - 0xB000;
+            if (cart_offset < state_.cartridge_rom.size())
+                return state_.cartridge_rom[cart_offset];
+        }
         return 0xFF;
     }
     if (address < 0xF000) {
-        // BASIC ROM: 0xC000-0xEFFF
+        // 0xC000-0xEFFF: BASIC ROM (12KB)
+        if (state_.cartridge_inserted && state_.cartridge_rom.size() > 0x1000) {
+            uint16_t cart_offset = address - 0xB000;
+            if (cart_offset < state_.cartridge_rom.size())
+                return state_.cartridge_rom[cart_offset];
+        }
         return state_.basic_rom[address - 0xC000];
     }
     // Monitor ROM: 0xF000-0xFFFF
@@ -90,26 +113,44 @@ uint8_t MemorySystem::read(uint16_t address) {
 }
 
 void MemorySystem::write(uint16_t address, uint8_t value) {
-    if (address < 0x4000) { state_.video_ram[address] = value; return; }
+    if (address < 0x2000) {
+        state_.video_ram[address + (state_.video_page << 13)] = value;
+        return;
+    }
     if (address < 0xA000) {
-        // Cartridge area: writes ignored when cartridge inserted
-        if (state_.cartridge_inserted && address >= 0x6000) return;
-        uint16_t offset = address - 0x4000;
-        if (offset < sizeof(state_.user_ram)) state_.user_ram[offset] = value;
+        state_.user_ram[address - 0x2000] = value;
         return;
     }
     if (address < 0xA800) {
-        // I/O space — PIA registers at 0xA7C0-0xA7C3
-        if (pia_ && address >= 0xA7C0 && address <= 0xA7C3)
-            pia_->write_register(address & 0x03, value);
+        if (address == 0xA7C0) {
+            // Gate array system register — direct write (masked to 0x5F)
+            // Bit 0: video page select (0=pixel/forme, 1=color/fond)
+            // Bits 1-4: border color
+            // Bit 5: read-only (lightpen)
+            // Bit 6: writable
+            // Bit 7: read-only (cassette input)
+            state_.gate_array_reg = value & 0x5F;
+            state_.video_page = value & 0x01;
+            return;
+        }
+        if (pia_ && address >= 0xA7C1 && address <= 0xA7C3) {
+            // MO5 PIA register mapping (address lines swapped vs standard 6821):
+            //   0xA7C1 → PIA reg 2 (Port B data/DDR — keyboard scan)
+            //   0xA7C2 → PIA reg 1 (CRA)
+            //   0xA7C3 → PIA reg 3 (CRB — vsync interrupt)
+            static constexpr uint8_t mo5_pia_map[4] = {0, 2, 1, 3};
+            pia_->write_register(mo5_pia_map[address & 0x03], value);
+        }
         return;
     }
-    // 0xA800-0xBFFF: reserved, writes ignored
-    // 0xC000-0xFFFF: ROM, writes ignored
+    // 0xA800-0xFFFF: ROM/extension, writes ignored
 }
 
-const uint8_t* MemorySystem::get_pixel_ram() const { return state_.video_ram; }
-const uint8_t* MemorySystem::get_color_ram() const { return state_.video_ram + 0x2000; }
+const uint8_t* MemorySystem::get_pixel_ram() const { return state_.video_ram + 0x2000; }  // page 1: forme/shape bitmaps
+const uint8_t* MemorySystem::get_color_ram() const { return state_.video_ram; }           // page 0: fond/color attributes
+
+void MemorySystem::set_video_page(uint8_t page) { state_.video_page = page & 0x01; }
+uint8_t MemorySystem::get_video_page() const { return state_.video_page; }
 
 void MemorySystem::set_pia(PIA* pia) { pia_ = pia; }
 void MemorySystem::set_gate_array(GateArray* ga) { gate_array_ = ga; }

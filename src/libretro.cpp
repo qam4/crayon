@@ -149,7 +149,7 @@ RETRO_API void* retro_get_memory_data(unsigned id) {
 }
 
 RETRO_API size_t retro_get_memory_size(unsigned id) {
-    if (id == RETRO_MEMORY_VIDEO_RAM) return 0x4000;
-    if (id == RETRO_MEMORY_SYSTEM_RAM) return 0x6000;
+    if (id == RETRO_MEMORY_VIDEO_RAM) return 0x4000;  // 16KB video RAM (2 x 8KB pages)
+    if (id == RETRO_MEMORY_SYSTEM_RAM) return 0x8000;  // 32KB user RAM (0x2000-0x9FFF)
     return 0;
 }

@@ -180,8 +180,7 @@ void ImGuiDebuggerUI::render_memory_panel() {
         // Region label
         uint16_t a = static_cast<uint16_t>(view_addr);
         const char* region = "Unknown";
-        if (a < 0x2000) region = "Pixel RAM";
-        else if (a < 0x4000) region = "Color RAM";
+        if (a < 0x2000) region = "Video RAM (paged)";
         else if (a < 0xA000) region = "User RAM";
         else if (a < 0xA800) region = "I/O (PIA)";
         else if (a < 0xC000) region = "Reserved";

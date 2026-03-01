@@ -198,6 +198,11 @@ endif()
 
 # Testing
 if(BUILD_TESTS)
+
+    # Boot diagnostic tool (links only against core, no SDL needed)
+    add_executable(boot_diag tools/boot_diag.cpp)
+    target_link_libraries(boot_diag crayon_core)
+
     enable_testing()
     
     FetchContent_Declare(

@@ -2,6 +2,9 @@
 #include <iostream>
 #include <fstream>
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 namespace crayon {
 
 HeadlessFrontend::HeadlessFrontend() = default;
@@ -54,8 +57,20 @@ void HeadlessFrontend::process_input() {}
 MenuAction HeadlessFrontend::process_menu() { return MenuAction::None; }
 void HeadlessFrontend::show_message(const std::string& message) { std::cout << message << "\n"; }
 
-void HeadlessFrontend::save_screenshot(const std::string& /*filename*/) {
-    // TODO: Write framebuffer to PNG via stb_image_write
+void HeadlessFrontend::save_screenshot(const std::string& filename) {
+    const uint32* fb = emulator_->get_framebuffer();
+    if (!fb) return;
+    // Convert RGBA uint32 to 4-byte-per-pixel array for stb
+    // Our format is 0xRRGGBBAA, stb expects R,G,B,A bytes
+    std::vector<uint8_t> pixels(320 * 200 * 4);
+    for (int i = 0; i < 320 * 200; ++i) {
+        uint32 p = fb[i];
+        pixels[i * 4 + 0] = (p >> 24) & 0xFF; // R
+        pixels[i * 4 + 1] = (p >> 16) & 0xFF; // G
+        pixels[i * 4 + 2] = (p >> 8) & 0xFF;  // B
+        pixels[i * 4 + 3] = p & 0xFF;          // A
+    }
+    stbi_write_png(filename.c_str(), 320, 200, 4, pixels.data(), 320 * 4);
 }
 
 void HeadlessFrontend::dump_framebuffer(const std::string& filename) {
