@@ -8,6 +8,7 @@
 #include "frontend.h"
 
 class TextRenderer;
+class ConfigManager;
 
 struct MenuItem {
     std::string label;

@@ -245,7 +245,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random 8KB pixel and color buffers; render; verify each pixel maps to correct palette color based on pixel bit and attribute nibbles
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.6, 6.9, 6.10**
 
-- [-] 8. Checkpoint — Video rendering tests passing
+- [ ] 8. Checkpoint — Video rendering tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt
