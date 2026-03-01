@@ -1,0 +1,425 @@
+# Implementation Plan: Crayon Thomson MO5 Emulator
+
+## Overview
+
+Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replacing machine-specific components (CPU, VDC, memory map) with MO5 equivalents while retaining shared infrastructure (CMake, SDL2 frontend, libretro core, ImGui debugger, save state framework, CI/CD, GTest/RapidCheck). Development follows 8 milestones: CPU → Memory/PIA → Video → Boot BASIC → Cassette → Keyboard → Light Pen → Libretro/Android.
+
+## Tasks
+
+- [x] 1. Fork and adapt Videopac codebase
+  - [x] 1.1 Rename namespace and project references from `videopac` to `crayon`
+    - Rename the CMake project from "videopac" to "crayon" in CMakeLists.txt
+    - Rename the output executable target to "crayon"
+    - Search-and-replace `videopac::` namespace to `crayon::` across all retained source files
+    - Update `#include` paths and header guards to reflect the new project name
+    - _Requirements: 1.1, 2.1_
+  - [x] 1.2 Remove Videopac-specific source files and add MO5 stubs
+    - Delete `src/cpu.cpp`, `src/vdc.cpp`, `include/cpu.h`, `include/vdc.h` (Videopac Intel 8048 + Intel 8245)
+    - Create stub header and source files for all MO5 components: `include/cpu6809.h`, `src/cpu6809.cpp`, `include/gate_array.h`, `src/gate_array.cpp`, `include/memory_system.h`, `src/memory_system.cpp`, `include/pia.h`, `src/pia.cpp`, `include/audio_system.h`, `src/audio_system.cpp`, `include/input_handler.h`, `src/input_handler.cpp`, `include/light_pen.h`, `src/light_pen.cpp`, `include/cassette_interface.h`, `src/cassette_interface.cpp`, `include/master_clock.h`, `src/master_clock.cpp`
+    - Each stub should declare the class interface from the design document with empty method bodies
+    - _Requirements: 1.2, 2.6_
+  - [x] 1.3 Update CMakeLists.txt for MO5 source files and build options
+    - Replace Videopac source file list with MO5 source files in the `add_executable` / library targets
+    - Ensure `BUILD_TESTS` option fetches GTest and RapidCheck and builds the test executable
+    - Ensure `ENABLE_SDL` option links SDL2 for the frontend
+    - Set C++17 standard with extensions disabled, enable `-Wall -Wextra -Wpedantic -Werror` (GCC/Clang) and `/W4` (MSVC)
+    - Add CMake warning if SDL2 is not found, building headless-only version
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.7_
+  - [x] 1.4 Create MO5 data model structs and state types
+    - Create `include/crayon_state.h` with all state structs: `CPU6809State`, `GateArrayState`, `MO5MemoryState`, `PIAState`, `AudioState`, `CassetteState`, `LightPenState`, `InputState`, `SaveState`
+    - Include CC flag constants, helper methods (`d()`, `set_d()`), and all fields as specified in the design
+    - _Requirements: 1.2_
+  - [x] 1.5 Create EmulatorCore shell connecting all MO5 components
+    - Implement `include/emulator_core.h` and `src/emulator_core.cpp` with the `crayon::EmulatorCore` class
+    - Wire component ownership: `CPU6809`, `GateArray`, `MemorySystem`, `PIA`, `AudioSystem`, `InputHandler`, `LightPen`, `CassetteInterface`, `MasterClock`
+    - Implement constructor that connects components via their `set_*` methods (e.g., `memory_.set_pia(&pia_)`)
+    - Stub `run_frame()`, `reset()`, `step()`, `save_state()`, `load_state()` with TODO bodies
+    - _Requirements: 1.5, 12.1_
+  - [x] 1.6 Adapt CI/CD pipeline for Crayon
+    - Update `.github/` workflow files to reference "crayon" project name, build targets, and test targets
+    - Ensure workflows build on Linux (GCC), macOS (Clang), and Windows (MSVC)
+    - Ensure workflows run the test suite and report failures
+    - _Requirements: 1.9, 16.1, 16.2, 16.3, 16.5_
+  - [x] 1.7 Verify the project compiles and stub tests pass
+    - Ensure `cmake --build` succeeds with all stubs
+    - Ensure the test executable links and runs (even if tests are trivial/empty)
+    - _Requirements: 2.1_
+
+- [x] 2. Checkpoint — Verify fork compiles cleanly
+  - Ensure all tests pass, ask the user if questions arise.
+
+
+- [ ] 3. Milestone 1 — Motorola 6809E CPU core passing instruction tests
+  - [ ] 3.1 Implement CPU6809 register model and reset logic
+    - Implement `CPU6809` constructor initializing all registers to power-on defaults
+    - Implement `reset()`: set PC from reset vector at 0xFFFE-0xFFFF, set DP=0, mask IRQ/FIRQ in CC, clear halt states
+    - Implement `get_state()` / `set_state()` for full register snapshot
+    - Connect to `MemorySystem` via `set_memory_system()`
+    - _Requirements: 3.2, 3.6_
+  - [ ] 3.2 Implement instruction fetch, decode, and prefix page handling
+    - Implement `execute_instruction()` main loop: fetch opcode at PC, increment PC
+    - Handle 0x10 and 0x11 prefix bytes: fetch second opcode byte, dispatch to extended opcode tables
+    - Create opcode dispatch tables for main page, page 2 (0x10), and page 3 (0x11)
+    - Return cycle count consumed by each instruction
+    - _Requirements: 3.1, 3.5_
+  - [ ] 3.3 Implement all 6809 addressing modes
+    - Implement inherent, immediate (8-bit and 16-bit), direct (DP-relative), extended (16-bit absolute)
+    - Implement indexed addressing with all sub-modes: zero-offset, 5-bit offset, 8-bit offset, 16-bit offset, A/B/D accumulator offset, auto-increment (1/2), auto-decrement (1/2), PC-relative (8/16-bit), and indirect variants of all applicable modes
+    - Each addressing mode resolver returns the effective address and additional cycles consumed
+    - _Requirements: 3.3_
+  - [ ] 3.4 Implement 8-bit ALU instructions (ADD, SUB, AND, OR, EOR, CMP, LD, ST, etc.)
+    - Implement ADDA, ADDB, ADCA, ADCB, SUBA, SUBB, SBCA, SBCB
+    - Implement ANDA, ANDB, ORA, ORB, EORA, EORB
+    - Implement CMPA, CMPB, LDA, LDB, STA, STB
+    - Implement INCA, INCB, DECA, DECB, NEGA, NEGB, COMA, COMB, TSTA, TSTB, CLRA, CLRB
+    - Set CC flags (N, Z, V, C, H where applicable) correctly for each instruction
+    - _Requirements: 3.1, 3.4_
+  - [ ] 3.5 Implement 16-bit ALU and register instructions
+    - Implement ADDD, SUBD, CMPD, CMPX, CMPY, CMPU, CMPS
+    - Implement LDD, LDX, LDY, LDU, LDS, STD, STX, STY, STU, STS
+    - Implement LEA (LEAX, LEAY, LEAU, LEAS)
+    - Implement TFR, EXG with all valid register pair encodings
+    - Implement MUL, SEX, ABX, DAA
+    - _Requirements: 3.1, 3.4_
+  - [ ] 3.6 Implement branch instructions
+    - Implement short branches: BRA, BRN, BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE
+    - Implement long branches (0x10 prefix): LBRA, LBRN, LBHI, LBLS, LBCC, LBCS, LBNE, LBEQ, LBVC, LBVS, LBPL, LBMI, LBGE, LBLT, LBGT, LBLE
+    - Implement BSR, LBSR
+    - _Requirements: 3.1_
+  - [ ] 3.7 Implement stack and subroutine instructions
+    - Implement PSHS, PSHU (push registers to S or U stack, respecting register order encoding)
+    - Implement PULS, PULU (pull registers from S or U stack)
+    - Implement JSR, RTS
+    - _Requirements: 3.1_
+  - [ ] 3.8 Implement interrupt handling (IRQ, FIRQ, NMI, SWI)
+    - Implement IRQ: when asserted and I flag clear, push entire state (set E flag), vector through 0xFFF8-0xFFF9, set I flag
+    - Implement FIRQ: when asserted and F flag clear, push CC and PC only (clear E flag), vector through 0xFFF6-0xFFF7, set I and F flags
+    - Implement NMI: edge-triggered, push entire state, vector through 0xFFFC-0xFFFD, set I and F flags
+    - Implement SWI (vector 0xFFFA), SWI2 (vector 0xFFF2), SWI3 (vector 0xFFF4)
+    - Implement SYNC and CWAI halt-until-interrupt behavior
+    - _Requirements: 3.7, 3.8, 3.9, 3.10, 3.11_
+  - [ ] 3.9 Implement memory-mode instructions (direct/extended/indexed)
+    - Implement NEG, COM, LSR, ROR, ASR, ASL/LSL, ROL, DEC, INC, TST, JMP, CLR for memory operands
+    - These use the addressing mode resolver from 3.3 to compute the effective address
+    - _Requirements: 3.1, 3.3_
+  - [ ] 3.10 Implement 6809 disassembler for debugger
+    - Create `include/disassembler.h` and `src/disassembler.cpp`
+    - Decode all opcodes including 0x10/0x11 prefix pages into mnemonic strings
+    - Decode all addressing modes into human-readable operand strings
+    - Return instruction length in bytes for advancing the disassembly cursor
+    - _Requirements: 15.5_
+  - [ ]* 3.11 Write property tests for ADDA/SUBA round-trip
+    - **Property 10: ADDA/SUBA round-trip**
+    - Generate random initial A values and 8-bit operands; execute ADDA then SUBA; verify A is restored
+    - **Validates: Requirements 3.13, 17.2**
+  - [ ]* 3.12 Write property tests for ADDD/SUBD round-trip
+    - **Property 11: ADDD/SUBD round-trip**
+    - Generate random initial D values and 16-bit operands; execute ADDD then SUBD; verify D is restored
+    - **Validates: Requirements 17.3**
+  - [ ]* 3.13 Write property tests for PSHS/PULS round-trip
+    - **Property 12: PSHS/PULS round-trip**
+    - Generate random register states; push all via PSHS; pull all via PULS; verify all registers restored
+    - **Validates: Requirements 17.4**
+  - [ ]* 3.14 Write property tests for NEG double-application round-trip
+    - **Property 13: NEG double-application round-trip**
+    - Generate random 8-bit values; apply NEG twice; verify original restored (except 0x80)
+    - **Validates: Requirements 17.5**
+  - [ ]* 3.15 Write property tests for COM double-application round-trip
+    - **Property 14: COM double-application round-trip**
+    - Generate random 8-bit values; apply COM twice; verify original restored
+    - **Validates: Requirements 17.6**
+  - [ ]* 3.16 Write property tests for arithmetic flag invariant (N and Z)
+    - **Property 15: Arithmetic flag invariant (N and Z)**
+    - Generate random operands; execute arithmetic ops; verify N == bit 7 of result, Z == (result == 0)
+    - **Validates: Requirements 3.4, 17.7**
+  - [ ]* 3.17 Write property tests for CMPA/SUBA metamorphic relationship
+    - **Property 16: CMPA/SUBA metamorphic relationship**
+    - Generate random A and B values; execute CMPA and SUBA separately; verify same flags but CMPA preserves A
+    - **Validates: Requirements 17.8**
+  - [ ]* 3.18 Write property tests for interrupt push and vector correctness
+    - **Property 17: Interrupt push and vector correctness**
+    - Generate random register states; trigger IRQ/FIRQ/NMI; verify correct state pushed and correct vector loaded
+    - **Validates: Requirements 3.7, 3.8, 3.9, 3.10**
+  - [ ]* 3.19 Write property tests for CPU cycle count accuracy
+    - **Property 25: CPU cycle count accuracy**
+    - Generate random valid opcodes and operands; execute; verify cycle count matches 6809 datasheet
+    - **Validates: Requirements 3.5**
+  - [ ]* 3.20 Write property tests for disassembly correctness
+    - **Property 28: Disassembly correctness**
+    - Generate random valid instruction byte sequences; disassemble; verify valid mnemonic produced
+    - **Validates: Requirements 15.5**
+
+- [ ] 4. Checkpoint — CPU instruction tests passing
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 5. Milestone 2 — Memory map + PIA for basic I/O
+  - [ ] 5.1 Implement MO5 MemorySystem address decoding
+    - Implement `read()` and `write()` with address decoding: Video RAM (0x0000-0x3FFF), user RAM (0x4000-0x9FFF), I/O space (0xA000-0xA7FF), reserved (0xA800-0xBFFF returns 0xFF), BASIC ROM (0xC000-0xEFFF), Monitor ROM (0xF000-0xFFFF)
+    - Implement ROM write-ignore behavior for 0xC000-0xFFFF
+    - Implement `get_pixel_ram()` and `get_color_ram()` for direct VRAM access by GateArray
+    - _Requirements: 4.1, 4.4, 4.8, 4.9_
+  - [ ] 5.2 Implement ROM loading
+    - Implement `load_basic_rom()` to load 12KB BASIC ROM into 0xC000-0xEFFF (from file path or raw data)
+    - Implement `load_monitor_rom()` to load 4KB Monitor ROM into 0xF000-0xFFFF including reset/interrupt vectors
+    - Return `Result<void>` errors for missing files or wrong sizes
+    - _Requirements: 4.5, 4.6_
+  - [ ] 5.3 Implement cartridge mapping
+    - Implement `load_cartridge()`, `insert_cartridge()`, `remove_cartridge()`
+    - When cartridge is inserted, map cartridge ROM into 0x6000-0x9FFF replacing user RAM
+    - When cartridge is removed, restore user RAM access at 0x6000-0x9FFF
+    - _Requirements: 4.7_
+  - [ ] 5.4 Implement PIA MC6821 register access
+    - Implement `read_register()` and `write_register()` for registers 0-3 (mirrored in I/O space)
+    - Implement DDR/DR access routing: when control register bit 2 is clear, access DDR; when set, access DR
+    - Implement data register masking: read returns `(output_latch AND DDR) OR (input_pins AND NOT DDR)`
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [ ] 5.5 Implement PIA interrupt handling and vsync
+    - Implement `signal_vsync()`: set interrupt flag, assert IRQ to CPU if interrupt enable bit is set
+    - Implement `signal_lightpen()`: set CB1 interrupt flag
+    - Implement control register read: return interrupt flags in bits 6/7, clear them on read
+    - Implement `irq_active()` and `firq_active()` based on flag and enable bit state
+    - _Requirements: 5.5, 5.8, 5.9_
+  - [ ] 5.6 Wire MemorySystem I/O routing to PIA
+    - Route reads/writes at 0xA000-0xA7FF through `MemorySystem` to `PIA::read_register()` / `PIA::write_register()`
+    - Map PIA registers at their MO5-specific addresses within the I/O space
+    - Connect PIA to peripherals via `set_input_handler()`, `set_cassette()`, `set_light_pen()`, `set_audio()`
+    - _Requirements: 4.2, 4.3, 5.1, 5.6, 5.7, 5.8_
+  - [ ]* 5.7 Write property tests for RAM write/read round-trip
+    - **Property 1: RAM write/read round-trip**
+    - Generate random addresses in user RAM (0x4000-0x5FFF) and Video RAM (0x0000-0x3FFF) with random byte values; write then read back; verify identical
+    - **Validates: Requirements 4.10, 4.11, 18.1, 18.2**
+  - [ ]* 5.8 Write property tests for ROM write-ignore invariant
+    - **Property 2: ROM write-ignore invariant**
+    - Generate random ROM addresses (0xC000-0xFFFF) and random values; write; verify read returns original ROM content
+    - **Validates: Requirements 4.9, 18.3**
+  - [ ]* 5.9 Write property tests for reserved address range
+    - **Property 3: Reserved address range returns 0xFF**
+    - Generate random addresses in 0xA800-0xBFFF; verify reads return 0xFF and writes have no effect
+    - **Validates: Requirements 4.8, 18.6**
+  - [ ]* 5.10 Write property tests for I/O address routing
+    - **Property 4: I/O address routing**
+    - Generate random I/O addresses (0xA000-0xA7FF); verify reads/writes route to correct peripheral
+    - **Validates: Requirements 4.2, 4.3, 18.5**
+  - [ ]* 5.11 Write property tests for PIA DDR/DR access routing
+    - **Property 5: PIA DDR/DR access routing**
+    - Generate random control register values; verify bit 2 controls DDR vs DR access
+    - **Validates: Requirements 5.2, 5.3**
+  - [ ]* 5.12 Write property tests for PIA data register masking
+    - **Property 6: PIA data register masking invariant**
+    - Generate random DDR, output latch, and input pin values; verify read returns `(latch AND DDR) OR (pins AND NOT DDR)`
+    - **Validates: Requirements 5.4, 5.10, 18.4**
+  - [ ]* 5.13 Write property tests for PIA interrupt flag read-and-clear
+    - **Property 7: PIA interrupt flag read-and-clear**
+    - Set interrupt flags; read control register; verify flags returned then cleared
+    - **Validates: Requirements 5.9**
+  - [ ]* 5.14 Write property tests for PIA vsync interrupt assertion
+    - **Property 8: PIA vsync interrupt assertion**
+    - Generate random PIA states with interrupt enable set; signal vsync; verify IRQ asserted
+    - **Validates: Requirements 5.5**
+  - [ ]* 5.15 Write property tests for cartridge memory mapping
+    - **Property 24: Cartridge memory mapping**
+    - Generate random cartridge ROM data; insert cartridge; verify reads from 0x6000-0x9FFF return cartridge data; remove; verify user RAM restored
+    - **Validates: Requirements 4.7**
+
+- [ ] 6. Checkpoint — Memory map and PIA tests passing
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 7. Milestone 3 — Video gate array (bitmap rendering)
+  - [ ] 7.1 Implement GateArray forme/fond rendering pipeline
+    - Implement `render_frame()` that reads 8KB pixel data (0x0000-0x1FFF) and 8KB color attributes (0x2000-0x3FFF)
+    - For each 8-pixel block: extract pixel byte and color byte, split color byte into forme (high nibble) and fond (low nibble)
+    - For each pixel: if bit is 1, use forme palette color; if bit is 0, use fond palette color
+    - Output 320x200 RGBA pixels to the framebuffer using the MO5 16-color palette
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.8_
+  - [ ] 7.2 Implement GateArray timing signals
+    - Implement vsync generation: set `vsync_triggered()` flag after rendering a complete frame
+    - Implement `clear_vsync()` for PIA to acknowledge the signal
+    - Wire vsync signal from GateArray to PIA via `PIA::signal_vsync()`
+    - _Requirements: 6.7, 6.9, 6.10_
+  - [ ] 7.3 Implement GateArray state serialization
+    - Implement `get_state()` / `set_state()` for save state support
+    - Serialize beam position, frame number, vsync flag, border color
+    - _Requirements: 12.5_
+  - [ ]* 7.4 Write property tests for forme/fond rendering correctness
+    - **Property 9: Forme/fond rendering correctness**
+    - Generate random 8KB pixel and color buffers; render; verify each pixel maps to correct palette color based on pixel bit and attribute nibbles
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.6, 6.9, 6.10**
+
+- [ ] 8. Checkpoint — Video rendering tests passing
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 9. Milestone 4 — Boot MO5 BIOS to BASIC prompt
+  - [ ] 9.1 Implement MasterClock timing
+    - Implement `tick()` advancing cycle counter, tracking scanline position
+    - Implement `cpu_ready()` returning true each cycle (1 MHz flat clock)
+    - Implement `frame_complete()` returning true after 20,000 cycles (1 MHz / 50Hz)
+    - Implement E/Q clock phase tracking for the externally clocked 6809E
+    - _Requirements: 11.1, 11.2, 11.3, 11.4_
+  - [ ] 9.2 Implement EmulatorCore run_frame() loop
+    - Implement `run_frame()`: loop for 20,000 CPU cycles, calling `cpu_.execute_instruction()` and accumulating cycles
+    - After CPU loop: call `gate_array_.render_frame()` with VRAM pointers
+    - After render: signal vsync to PIA, handle PIA→CPU interrupt routing
+    - Generate audio samples proportional to cycles executed
+    - _Requirements: 12.2, 11.4_
+  - [ ] 9.3 Implement EmulatorCore reset and ROM boot sequence
+    - Implement `reset()`: reset all components, load reset vector from 0xFFFE-0xFFFF into PC
+    - Implement `load_roms()`: load BASIC ROM and Monitor ROM, return errors if files missing or wrong size
+    - Verify the emulator boots to the BASIC 1.0 prompt when both ROMs are loaded and no cartridge is inserted
+    - _Requirements: 12.3, 12.4_
+  - [ ] 9.4 Implement save state serialization and deserialization
+    - Implement `save_state()`: collect state from all components into `SaveState` struct, serialize to file with version and checksum
+    - Implement `load_state()`: deserialize from file, verify version and checksum, restore all component states
+    - Use the adapted `SaveStateManager` pattern from the Videopac codebase
+    - _Requirements: 12.5, 12.6, 12.7_
+  - [ ]* 9.5 Write property tests for cycles per frame invariant
+    - **Property 22: Cycles per frame invariant**
+    - Run multiple frames; verify each frame consumes exactly 20,000 cycles (±1 tolerance)
+    - **Validates: Requirements 11.4, 11.5**
+  - [ ]* 9.6 Write property tests for save state round-trip
+    - **Property 23: Save state serialization round-trip**
+    - Generate random emulator states; serialize to bytes; deserialize; verify identical state
+    - **Validates: Requirements 12.6, 12.7, 14.7**
+  - [ ]* 9.7 Write property tests for reset vector initialization
+    - **Property 27: Reset vector initialization**
+    - Load various Monitor ROMs with different reset vectors; reset; verify PC equals value at 0xFFFE-0xFFFF
+    - **Validates: Requirements 12.3**
+
+- [ ] 10. Checkpoint — Emulator boots to BASIC prompt
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 11. Milestone 5 — Cassette loading (K7 format)
+  - [ ] 11.1 Implement K7 file format parser
+    - Implement `load_k7()`: parse K7 file containing leader sequences, sync bytes, data blocks with headers and checksums
+    - Validate K7 file structure and return `Result<void>` errors for malformed files
+    - Store parsed data in `k7_data_` vector for sequential playback
+    - _Requirements: 10.1, 10.4_
+  - [ ] 11.2 Implement K7 file serializer
+    - Implement `save_k7()`: serialize `record_buffer_` into valid K7 format with leader, sync, headers, data blocks, and checksums
+    - Write the serialized data to a file
+    - _Requirements: 10.5_
+  - [ ] 11.3 Implement cassette playback and recording through PIA
+    - Implement `play()`, `stop()`, `rewind()` transport controls
+    - Implement `read_data_bit()`: return next bit from K7 data stream, advancing read position
+    - Implement `write_data_bit()`: capture bit into record buffer during SAVE operations
+    - Wire cassette data lines through PIA Port A/B for LOAD and SAVE commands
+    - _Requirements: 10.2, 10.3_
+  - [ ] 11.4 Implement cassette state serialization
+    - Implement `get_state()` / `set_state()` for save state support
+    - Serialize K7 data, read position, bit position, playing/recording state, record buffer
+    - _Requirements: 12.5_
+  - [ ]* 11.5 Write property tests for K7 parse/serialize round-trip
+    - **Property 20: K7 parse/serialize round-trip**
+    - Generate random valid K7 byte sequences; parse to internal representation; serialize back; verify byte-identical
+    - **Validates: Requirements 10.7**
+  - [ ]* 11.6 Write property tests for K7 data write/read round-trip
+    - **Property 21: K7 data write/read round-trip**
+    - Generate random data byte sequences; write via cassette output; read back via cassette input; verify identical
+    - **Validates: Requirements 10.6**
+
+- [ ] 12. Milestone 6 — Keyboard input
+  - [ ] 12.1 Implement MO5 chiclet keyboard matrix scanning
+    - Implement `read_keyboard_row()`: given a column strobe value, return the row state reflecting pressed keys in that column
+    - Implement `set_key_state()` for both (row, col) and `MO5Key` enum variants
+    - Support simultaneous key presses by correctly reporting multiple active rows
+    - Return all row bits inactive when no key is pressed in the scanned column
+    - _Requirements: 8.1, 8.2, 8.4, 8.5_
+  - [ ] 12.2 Implement host-to-MO5 key mapping
+    - Implement `map_host_key()` and `process_host_key()` to translate SDL2 keycodes to MO5 matrix positions
+    - Create default key mapping covering all MO5 keys including SHIFT, ENTER, STOP, CNT, ACC, and cursor keys
+    - _Requirements: 8.3_
+  - [ ] 12.3 Wire keyboard scanning through PIA
+    - Connect PIA Port A column strobe output to `InputHandler::read_keyboard_row()`
+    - Connect keyboard row input to PIA Port B input pins
+    - Verify keyboard scanning works end-to-end: CPU writes column strobe to PIA, reads row state back
+    - _Requirements: 5.6, 8.1, 8.2_
+  - [ ]* 12.4 Write property tests for keyboard matrix scanning
+    - **Property 18: Keyboard matrix scanning**
+    - Generate random sets of pressed keys and column strobe values; verify returned row state correctly reflects exactly which keys in that column are pressed
+    - **Validates: Requirements 8.2, 8.4**
+
+- [ ] 13. Checkpoint — Cassette and keyboard tests passing
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Milestone 7 — Light pen emulation (crayon optique)
+  - [ ] 14.1 Implement light pen coordinate translation
+    - Implement `set_mouse_position()`: translate host mouse position and window dimensions to MO5 screen coordinates (0-319, 0-199)
+    - Set `detected_` to true if mouse is within the emulated display area, false otherwise
+    - _Requirements: 9.1, 9.5_
+  - [ ] 14.2 Implement light pen strobe and button signaling
+    - Implement `update()`: compare light pen MO5 coordinates with current beam position; generate strobe signal when beam reaches the light pen position
+    - Implement `set_button_pressed()`: track mouse button state for light pen activation
+    - Wire strobe signal to PIA CB1 via `PIA::signal_lightpen()`
+    - Provide screen position to MO5 software through PIA registers
+    - _Requirements: 9.2, 9.3, 9.4_
+  - [ ] 14.3 Implement light pen state serialization
+    - Implement `get_state()` / `set_state()` for save state support
+    - _Requirements: 12.5_
+  - [ ]* 14.4 Write property tests for light pen coordinate translation
+    - **Property 19: Light pen coordinate translation**
+    - Generate random mouse positions and window dimensions; verify proportionally correct MO5 coordinates when inside display area, and no detection when outside
+    - **Validates: Requirements 9.1, 9.5**
+
+- [ ] 15. Milestone 8 — Libretro core, audio, frontend, and debugger
+  - [ ] 15.1 Implement AudioSystem 1-bit buzzer
+    - Implement `set_buzzer_bit()`: toggle buzzer state, producing square wave output
+    - Implement `generate_samples()`: resample 1-bit buzzer output to host sample rate (48000Hz) using the ring buffer
+    - Implement `fill_audio_buffer()`: copy samples from ring buffer to output buffer; output silence on underflow
+    - Implement `get_state()` / `set_state()` for save state support
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+  - [ ] 15.2 Adapt SDL2 frontend for MO5
+    - Adapt `src/frontend_sdl.cpp` to display the 320x200 MO5 framebuffer scaled to configurable integer multiple (default 3x: 960x600)
+    - Use SDL2 hardware-accelerated rendering with VSync enabled
+    - Capture SDL2 keyboard events and translate to MO5 keyboard matrix state via InputHandler
+    - Capture SDL2 mouse events and translate to LightPen coordinates and activation
+    - Open SDL2 audio device at 48000Hz and feed samples from AudioSystem ring buffer
+    - Implement Escape key to toggle pause, window close for clean shutdown
+    - Throttle execution to maintain correct 50Hz frame rate
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
+  - [ ] 15.3 Adapt Libretro core for MO5
+    - Adapt `src/libretro.cpp` to wrap `crayon::EmulatorCore` instead of Videopac EmulatorCore
+    - Implement all standard libretro API functions: `retro_init`, `retro_deinit`, `retro_run`, `retro_load_game`, `retro_unload_game`, `retro_serialize`, `retro_unserialize`, `retro_get_system_info`, `retro_get_system_av_info`
+    - Report MO5 system info: core name "crayon", extensions "k7,rom", geometry 320x200
+    - Provide video frames in XRGB8888 format, audio samples at reported sample rate
+    - Translate libretro input callbacks to MO5 keyboard matrix and LightPen coordinates
+    - Support save state via `retro_serialize` / `retro_unserialize` using SaveStateManager
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8_
+  - [ ] 15.4 Add Libretro shared library build target to CMake
+    - Add CMake target producing `crayon_libretro.so` (Linux), `crayon_libretro.dll` (Windows), `crayon_libretro.dylib` (macOS)
+    - Ensure CI/CD pipeline builds the libretro shared library as a build artifact
+    - _Requirements: 14.8, 16.4_
+  - [ ] 15.5 Adapt ImGui debugger UI for MO5
+    - Adapt `src/debugger_ui.cpp` to display 6809E registers (A, B, D, X, Y, U, S, PC, DP, CC) with real-time updates
+    - Display CC flags (E, F, H, I, N, Z, V, C) individually with labeled indicators
+    - Implement memory viewer with MO5 64KB address space and region labels (Video RAM, User RAM, I/O, ROM)
+    - Implement disassembly view using the 6809 disassembler from task 3.10, including 0x10/0x11 prefix pages
+    - Implement breakpoints, single-step, step-over (JSR/BSR), and step-out functionality
+    - Display PIA register state (DRA, DRB, DDRA, DDRB, CRA, CRB) and GateArray state
+    - Toggle debugger pauses emulation and shows current CPU/memory state
+    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10_
+  - [ ] 15.6 Adapt save state framework for MO5 components
+    - Adapt `include/savestate.h` and `src/savestate.cpp` to serialize/deserialize all MO5 component states
+    - Include version field and checksum for integrity validation
+    - Return errors on version mismatch or checksum failure during load
+    - _Requirements: 1.7, 12.5, 12.6, 12.7_
+  - [ ]* 15.7 Write property tests for audio buzzer square wave
+    - **Property 26: Audio buzzer square wave**
+    - Generate random sequences of buzzer bit toggles; verify resampled output contains correct square wave period; verify silence on ring buffer underflow
+    - **Validates: Requirements 7.2, 7.3**
+  - [ ]* 15.8 Write unit tests for Libretro API compliance
+    - Test `retro_get_system_info` returns core name "crayon", extensions "k7,rom"
+    - Test `retro_get_system_av_info` returns geometry 320x200, XRGB8888 format
+    - Test `retro_serialize` / `retro_unserialize` round-trip
+    - _Requirements: 14.2, 14.3, 14.4, 14.7_
+
+- [ ] 16. Final checkpoint — Full integration
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation after each milestone
+- Property tests validate universal correctness properties from the design document (Properties 1-28)
+- Unit tests validate specific examples and edge cases
+- The implementation language is C++17, matching the existing Videopac codebase
+- All property tests use RapidCheck with minimum 100 iterations per property

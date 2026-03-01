@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [mainline]
+  pull_request:
+    branches: [mainline]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: Linux (GCC)
+            cmake_args: -DCMAKE_BUILD_TYPE=Release -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            install_deps: |
+              sudo apt-get update -q
+              sudo apt-get install -y -q libsdl2-dev
+
+          - os: macos-latest
+            name: macOS (Clang)
+            cmake_args: -DCMAKE_BUILD_TYPE=Release -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            install_deps: brew install sdl2
+
+          - os: windows-2022
+            name: Windows (MSVC)
+            cmake_args: -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            install_deps: vcpkg install sdl2:x64-windows
+
+          - os: ubuntu-22.04
+            name: Android (arm64)
+            cmake_args: >-
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake
+              -DANDROID_ABI=arm64-v8a
+              -DANDROID_PLATFORM=android-24
+              -DENABLE_SDL=OFF
+              -DBUILD_STANDALONE=OFF
+              -DBUILD_TESTS=OFF
+              -DBUILD_LIBRETRO=ON
+            install_deps: echo "NDK provided by runner"
+            skip_test: true
+
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ${{ matrix.install_deps }}
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.cmake_args }}
+      - name: Build
+        run: cmake --build build --config Release -j 2
+      - name: Test
+        if: ${{ !matrix.skip_test }}
+        working-directory: build
+        run: ctest --output-on-failure --no-tests=error -C Release -j 2
+      - name: Upload libretro core
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crayon-libretro-${{ matrix.os }}
+          path: |
+            build/**/crayon_libretro.so
+            build/**/crayon_libretro.dll
+            build/**/crayon_libretro.dylib

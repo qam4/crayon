@@ -1,0 +1,11 @@
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.a
+*.obj
+imgui.ini
+*.log
+CMakeUserPresets.json

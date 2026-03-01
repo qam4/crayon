@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags: [v*]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: linux-x64
+            install_deps: |
+              sudo apt-get update -q
+              sudo apt-get install -y -q libsdl2-dev
+            cmake_args: -DCMAKE_BUILD_TYPE=Release -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            package: cd install && zip -r ../crayon-linux-x64.zip .
+
+          - os: macos-latest
+            arch: macos-x64
+            install_deps: brew install sdl2
+            cmake_args: -DCMAKE_BUILD_TYPE=Release -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            package: cd install && zip -r ../crayon-macos-x64.zip .
+
+          - os: windows-2022
+            arch: win-x64
+            install_deps: vcpkg install sdl2:x64-windows
+            cmake_args: -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DENABLE_SDL=ON -DBUILD_TESTS=ON
+            package: Compress-Archive -Path install/* -Destination crayon-win-x64.zip
+
+          - os: ubuntu-22.04
+            arch: android-arm64
+            install_deps: echo "NDK provided by runner"
+            cmake_args: >-
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake
+              -DANDROID_ABI=arm64-v8a
+              -DANDROID_PLATFORM=android-24
+              -DENABLE_SDL=OFF
+              -DBUILD_STANDALONE=OFF
+              -DBUILD_TESTS=OFF
+              -DBUILD_LIBRETRO=ON
+            skip_test: true
+            skip_install: true
+            package: |
+              mkdir -p install
+              cp build/crayon_libretro.so install/
+              cp crayon_libretro.info install/
+              cd install && zip -r ../crayon-android-arm64.zip .
+
+    name: ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ${{ matrix.install_deps }}
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.cmake_args }}
+      - name: Build
+        run: cmake --build build --config Release -j 2
+      - name: Test
+        if: ${{ !matrix.skip_test }}
+        working-directory: build
+        run: ctest --output-on-failure --no-tests=error -C Release -j 2
+      - name: Install
+        if: ${{ !matrix.skip_install }}
+        run: cmake --install build --config Release --prefix install
+      - name: Package
+        run: ${{ matrix.package }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crayon-${{ matrix.arch }}
+          path: crayon-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: crayon ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: artifacts/*.zip

@@ -1,0 +1,91 @@
+#include "emulator_core.h"
+#include "debugger.h"
+
+namespace crayon {
+
+EmulatorCore::EmulatorCore(const Configuration& config) : config_(config) {
+    // Wire up components
+    cpu_.set_memory_system(&memory_);
+    memory_.set_pia(&pia_);
+    memory_.set_gate_array(&gate_array_);
+    pia_.set_input_handler(&input_);
+    pia_.set_cassette(&cassette_);
+    pia_.set_light_pen(&light_pen_);
+    pia_.set_audio(&audio_);
+}
+
+Result<void> EmulatorCore::load_roms(const std::string& basic_path,
+                                     const std::string& monitor_path) {
+    auto result = memory_.load_basic_rom(basic_path);
+    if (result.is_err()) return result;
+    return memory_.load_monitor_rom(monitor_path);
+}
+
+Result<void> EmulatorCore::load_basic_rom(const std::string& path) { return memory_.load_basic_rom(path); }
+Result<void> EmulatorCore::load_basic_rom(const uint8* data, size_t size) { return memory_.load_basic_rom(data, size); }
+Result<void> EmulatorCore::load_monitor_rom(const std::string& path) { return memory_.load_monitor_rom(path); }
+Result<void> EmulatorCore::load_monitor_rom(const uint8* data, size_t size) { return memory_.load_monitor_rom(data, size); }
+Result<void> EmulatorCore::load_cartridge(const std::string& path) { return memory_.load_cartridge(path); }
+Result<void> EmulatorCore::load_cartridge(const uint8* data, size_t size) { return memory_.load_cartridge(data, size); }
+
+void EmulatorCore::reset() {
+    cpu_.reset();
+    gate_array_.reset();
+    pia_.reset();
+    audio_.reset();
+    input_.reset();
+    light_pen_.reset();
+    cassette_.reset();
+    master_clock_.reset();
+    running_ = true;
+    paused_ = false;
+    frame_count_ = 0;
+}
+
+void EmulatorCore::run_frame() {
+    if (!running_ || paused_) return;
+
+    master_clock_.clear_frame_complete();
+    while (!master_clock_.frame_complete()) {
+        uint8_t cycles = cpu_.execute_instruction();
+        for (uint8_t i = 0; i < cycles; ++i)
+            master_clock_.tick();
+
+        handle_interrupts();
+    }
+
+    // Render frame
+    gate_array_.render_frame(memory_.get_pixel_ram(), memory_.get_color_ram());
+    pia_.signal_vsync();
+    audio_.generate_samples(MasterClock::CYCLES_PER_FRAME);
+    frame_count_++;
+}
+
+void EmulatorCore::step() {
+    cpu_.execute_instruction();
+}
+
+const uint32* EmulatorCore::get_framebuffer() const {
+    return gate_array_.get_framebuffer();
+}
+
+void EmulatorCore::get_audio_buffer(int16* buffer, size_t samples) {
+    audio_.fill_audio_buffer(buffer, samples);
+}
+
+Result<void> EmulatorCore::save_state(const std::string& /*path*/) {
+    // TODO: Implement via SaveStateManager
+    return Result<void>::err("Save state not yet implemented");
+}
+
+Result<void> EmulatorCore::load_state(const std::string& /*path*/) {
+    // TODO: Implement via SaveStateManager
+    return Result<void>::err("Load state not yet implemented");
+}
+
+void EmulatorCore::handle_interrupts() {
+    cpu_.assert_irq(pia_.irq_active());
+    cpu_.assert_firq(pia_.firq_active());
+}
+
+} // namespace crayon
