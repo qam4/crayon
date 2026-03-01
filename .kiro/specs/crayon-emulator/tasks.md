@@ -49,60 +49,60 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
   - Ensure all tests pass, ask the user if questions arise.
 
 
-- [ ] 3. Milestone 1 — Motorola 6809E CPU core passing instruction tests
-  - [ ] 3.1 Implement CPU6809 register model and reset logic
+- [x] 3. Milestone 1 — Motorola 6809E CPU core passing instruction tests
+  - [x] 3.1 Implement CPU6809 register model and reset logic
     - Implement `CPU6809` constructor initializing all registers to power-on defaults
     - Implement `reset()`: set PC from reset vector at 0xFFFE-0xFFFF, set DP=0, mask IRQ/FIRQ in CC, clear halt states
     - Implement `get_state()` / `set_state()` for full register snapshot
     - Connect to `MemorySystem` via `set_memory_system()`
     - _Requirements: 3.2, 3.6_
-  - [ ] 3.2 Implement instruction fetch, decode, and prefix page handling
+  - [x] 3.2 Implement instruction fetch, decode, and prefix page handling
     - Implement `execute_instruction()` main loop: fetch opcode at PC, increment PC
     - Handle 0x10 and 0x11 prefix bytes: fetch second opcode byte, dispatch to extended opcode tables
     - Create opcode dispatch tables for main page, page 2 (0x10), and page 3 (0x11)
     - Return cycle count consumed by each instruction
     - _Requirements: 3.1, 3.5_
-  - [ ] 3.3 Implement all 6809 addressing modes
+  - [x] 3.3 Implement all 6809 addressing modes
     - Implement inherent, immediate (8-bit and 16-bit), direct (DP-relative), extended (16-bit absolute)
     - Implement indexed addressing with all sub-modes: zero-offset, 5-bit offset, 8-bit offset, 16-bit offset, A/B/D accumulator offset, auto-increment (1/2), auto-decrement (1/2), PC-relative (8/16-bit), and indirect variants of all applicable modes
     - Each addressing mode resolver returns the effective address and additional cycles consumed
     - _Requirements: 3.3_
-  - [ ] 3.4 Implement 8-bit ALU instructions (ADD, SUB, AND, OR, EOR, CMP, LD, ST, etc.)
+  - [x] 3.4 Implement 8-bit ALU instructions (ADD, SUB, AND, OR, EOR, CMP, LD, ST, etc.)
     - Implement ADDA, ADDB, ADCA, ADCB, SUBA, SUBB, SBCA, SBCB
     - Implement ANDA, ANDB, ORA, ORB, EORA, EORB
     - Implement CMPA, CMPB, LDA, LDB, STA, STB
     - Implement INCA, INCB, DECA, DECB, NEGA, NEGB, COMA, COMB, TSTA, TSTB, CLRA, CLRB
     - Set CC flags (N, Z, V, C, H where applicable) correctly for each instruction
     - _Requirements: 3.1, 3.4_
-  - [ ] 3.5 Implement 16-bit ALU and register instructions
+  - [x] 3.5 Implement 16-bit ALU and register instructions
     - Implement ADDD, SUBD, CMPD, CMPX, CMPY, CMPU, CMPS
     - Implement LDD, LDX, LDY, LDU, LDS, STD, STX, STY, STU, STS
     - Implement LEA (LEAX, LEAY, LEAU, LEAS)
     - Implement TFR, EXG with all valid register pair encodings
     - Implement MUL, SEX, ABX, DAA
     - _Requirements: 3.1, 3.4_
-  - [ ] 3.6 Implement branch instructions
+  - [x] 3.6 Implement branch instructions
     - Implement short branches: BRA, BRN, BHI, BLS, BCC, BCS, BNE, BEQ, BVC, BVS, BPL, BMI, BGE, BLT, BGT, BLE
     - Implement long branches (0x10 prefix): LBRA, LBRN, LBHI, LBLS, LBCC, LBCS, LBNE, LBEQ, LBVC, LBVS, LBPL, LBMI, LBGE, LBLT, LBGT, LBLE
     - Implement BSR, LBSR
     - _Requirements: 3.1_
-  - [ ] 3.7 Implement stack and subroutine instructions
+  - [x] 3.7 Implement stack and subroutine instructions
     - Implement PSHS, PSHU (push registers to S or U stack, respecting register order encoding)
     - Implement PULS, PULU (pull registers from S or U stack)
     - Implement JSR, RTS
     - _Requirements: 3.1_
-  - [ ] 3.8 Implement interrupt handling (IRQ, FIRQ, NMI, SWI)
+  - [x] 3.8 Implement interrupt handling (IRQ, FIRQ, NMI, SWI)
     - Implement IRQ: when asserted and I flag clear, push entire state (set E flag), vector through 0xFFF8-0xFFF9, set I flag
     - Implement FIRQ: when asserted and F flag clear, push CC and PC only (clear E flag), vector through 0xFFF6-0xFFF7, set I and F flags
     - Implement NMI: edge-triggered, push entire state, vector through 0xFFFC-0xFFFD, set I and F flags
     - Implement SWI (vector 0xFFFA), SWI2 (vector 0xFFF2), SWI3 (vector 0xFFF4)
     - Implement SYNC and CWAI halt-until-interrupt behavior
     - _Requirements: 3.7, 3.8, 3.9, 3.10, 3.11_
-  - [ ] 3.9 Implement memory-mode instructions (direct/extended/indexed)
+  - [x] 3.9 Implement memory-mode instructions (direct/extended/indexed)
     - Implement NEG, COM, LSR, ROR, ASR, ASL/LSL, ROL, DEC, INC, TST, JMP, CLR for memory operands
     - These use the addressing mode resolver from 3.3 to compute the effective address
     - _Requirements: 3.1, 3.3_
-  - [ ] 3.10 Implement 6809 disassembler for debugger
+  - [x] 3.10 Implement 6809 disassembler for debugger
     - Create `include/disassembler.h` and `src/disassembler.cpp`
     - Decode all opcodes including 0x10/0x11 prefix pages into mnemonic strings
     - Decode all addressing modes into human-readable operand strings
@@ -149,7 +149,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Generate random valid instruction byte sequences; disassemble; verify valid mnemonic produced
     - **Validates: Requirements 15.5**
 
-- [ ] 4. Checkpoint — CPU instruction tests passing
+- [-] 4. Checkpoint — CPU instruction tests passing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 5. Milestone 2 — Memory map + PIA for basic I/O

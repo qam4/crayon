@@ -225,6 +225,7 @@ if(BUILD_TESTS)
     # Test executable — starts empty, tests added per milestone
     add_executable(crayon_tests
         tests/test_placeholder.cpp
+        tests/test_cpu_interrupts.cpp
     )
     
     target_link_libraries(crayon_tests crayon_core gtest_main rapidcheck)

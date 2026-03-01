@@ -66,6 +66,71 @@ public:
 private:
     CPU6809State state_;
     MemorySystem* memory_ = nullptr;
+
+    // Instruction fetch helpers
+    uint8_t fetch();            // Read byte at PC, increment PC
+    uint16_t fetch16();         // Read 16-bit big-endian at PC, increment PC by 2
+
+    // Opcode dispatch by page
+    uint8_t execute_page1(uint8_t opcode);  // Main page opcodes 0x00-0xFF
+    uint8_t execute_page2(uint8_t opcode);  // Page 2 (0x10 prefix) opcodes
+    uint8_t execute_page3(uint8_t opcode);  // Page 3 (0x11 prefix) opcodes
+
+    // Addressing mode helpers
+    uint16_t addr_direct();                         // DP-relative: (DP << 8) | fetch()
+    uint16_t addr_extended();                       // 16-bit absolute: fetch16()
+    uint16_t addr_indexed(uint8_t& extra_cycles);   // Complex indexed addressing
+
+    // Indexed addressing helper: returns reference to X, Y, U, or S based on register select bits
+    uint16_t& index_register(uint8_t reg_bits);
+
+    // --- 8-bit ALU helpers (set CC flags, return result) ---
+    uint8_t op_add8(uint8_t a, uint8_t b, bool carry_in = false);
+    uint8_t op_sub8(uint8_t a, uint8_t b, bool carry_in = false);
+    void    op_cmp8(uint8_t a, uint8_t b);
+    uint8_t op_and8(uint8_t a, uint8_t b);
+    uint8_t op_or8(uint8_t a, uint8_t b);
+    uint8_t op_eor8(uint8_t a, uint8_t b);
+    void    op_ld8(uint8_t& reg, uint8_t val);
+    void    op_st8(uint16_t addr, uint8_t val);
+    uint8_t op_neg8(uint8_t val);
+    uint8_t op_com8(uint8_t val);
+    uint8_t op_inc8(uint8_t val);
+    uint8_t op_dec8(uint8_t val);
+    void    op_tst8(uint8_t val);
+    uint8_t op_clr8();
+
+    // --- Shift/rotate helpers ---
+    uint8_t op_lsr8(uint8_t val);
+    uint8_t op_asr8(uint8_t val);
+    uint8_t op_asl8(uint8_t val);
+    uint8_t op_ror8(uint8_t val);
+    uint8_t op_rol8(uint8_t val);
+
+    // --- 16-bit ALU helpers ---
+    uint16_t op_add16(uint16_t a, uint16_t b);
+    uint16_t op_sub16(uint16_t a, uint16_t b);
+    void     op_cmp16(uint16_t a, uint16_t b);
+    void     op_ld16(uint16_t& reg, uint16_t val);
+    void     op_st16(uint16_t addr, uint16_t val);
+    void     set_nz16(uint16_t val);
+
+    // --- 16-bit memory access ---
+    uint16_t read16(uint16_t address);
+
+    // --- Register transfer helpers ---
+    uint16_t get_register(uint8_t code);
+    void     set_register(uint8_t code, uint16_t val);
+
+    // --- Interrupt helpers ---
+    void push_entire_state();   // Push CC,A,B,DP,X,Y,U,PC to S stack (set E flag first)
+    void push_firq_state();     // Push CC,PC to S stack (clear E flag first)
+    uint8_t check_interrupts(); // Check and handle pending interrupts, return extra cycles
+
+    // --- CC flag helpers ---
+    void set_flag(uint8_t flag, bool val);
+    bool get_flag(uint8_t flag) const;
+    void set_nz8(uint8_t val);
 };
 
 } // namespace crayon
