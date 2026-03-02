@@ -20,6 +20,8 @@ public:
     void set_last_cartridge_directory(const std::string& path);
     std::string get_last_rom_directory() const;
     void set_last_rom_directory(const std::string& path);
+    std::string get_last_k7_directory() const;
+    void set_last_k7_directory(const std::string& path);
 
     bool get_auto_load_last_files() const;
     void set_auto_load_last_files(bool enabled);
@@ -30,6 +32,8 @@ public:
     void set_aspect_ratio(const std::string& ratio);
     bool get_fullscreen() const;
     void set_fullscreen(bool enabled);
+    int get_window_scale() const;
+    void set_window_scale(int scale);
 
     int get_volume() const;
     void set_volume(int volume);

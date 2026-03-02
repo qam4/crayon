@@ -21,6 +21,7 @@ void print_usage(const char* program) {
               << "  --frames <n>       Run for N frames then exit\n"
               << "  --screenshot <path> Save PNG screenshot after run (headless)\n"
               << "  --scale <n>        Display scale (1-4, default 2)\n"
+              << "  --debugger         Enable debugger (F5 to toggle)\n"
               << "  --help             Show this help\n";
 }
 
@@ -45,6 +46,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--frames" && i + 1 < argc) frame_limit = std::stoi(argv[++i]);
         else if (arg == "--scale" && i + 1 < argc) config.display_scale = std::stoi(argv[++i]);
         else if (arg == "--screenshot" && i + 1 < argc) screenshot_path = argv[++i];
+        else if (arg == "--debugger") config.enable_debugger = true;
         else { std::cerr << "Unknown option: " << arg << "\n"; print_usage(argv[0]); return 1; }
     }
 

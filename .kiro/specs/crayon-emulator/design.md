@@ -694,6 +694,579 @@ for y in 0..199:
                 (pixel_byte & (1 << bit)) ? forme : fond
 ```
 
+### UI Layer Components (Requirement 19)
+
+The UI layer provides user interaction, configuration management, and visual feedback. All components are carried over from the Videopac codebase and adapted for MO5-specific file types and settings.
+
+#### MenuSystem
+
+Provides in-game overlay menu for file loading, emulator control, and settings.
+
+```cpp
+namespace crayon {
+
+enum class MenuAction {
+    None,
+    LoadBasicROM,
+    LoadMonitorROM,
+    LoadCartridge,
+    LoadK7,
+    Reset,
+    Pause,
+    Resume,
+    SaveState,
+    LoadState,
+    Screenshot,
+    ToggleFPS,
+    ToggleDebugger,
+    ToggleFullscreen,
+    Quit
+};
+
+struct MenuItem {
+    std::string label;
+    MenuAction action;
+    std::vector<MenuItem> submenu;
+    bool enabled;
+    std::string shortcut;
+};
+
+class MenuSystem {
+public:
+    MenuSystem();
+
+    void initialize(TextRenderer* text_renderer, ConfigManager* config);
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_visible() const;
+    void show();
+    void hide();
+    void toggle();
+
+    MenuAction get_selected_action();
+    void clear_action();
+
+private:
+    std::vector<MenuItem> menu_items_;
+    size_t selected_index_;
+    std::vector<size_t> submenu_stack_;
+    bool visible_;
+    TextRenderer* text_renderer_;
+    ConfigManager* config_;
+};
+
+} // namespace crayon
+```
+
+#### ConfigManager
+
+Manages INI-based configuration persistence for all user preferences.
+
+```cpp
+namespace crayon {
+
+struct VideoConfig {
+    enum class ScalingFilter { Nearest, Linear, Sharp };
+    enum class AspectRatio { Original, Stretch, Fit };
+
+    ScalingFilter scaling_filter;
+    AspectRatio aspect_ratio;
+    bool fullscreen;
+    int window_scale;  // Integer scale factor (1-5)
+};
+
+struct AudioConfig {
+    float volume;       // 0.0 - 1.0
+    bool muted;
+    int buffer_size;    // Samples
+};
+
+struct OSDConfig {
+    enum class Position { TopLeft, TopRight, BottomLeft, BottomRight };
+
+    bool fps_enabled;
+    Position fps_position;
+    float opacity;      // 0.0 - 1.0
+    int notification_duration_ms;
+};
+
+struct GeneralConfig {
+    std::string last_cartridge_dir;
+    std::string last_rom_dir;
+    std::string last_k7_dir;
+    bool auto_load_last_file;
+    std::vector<std::string> recent_files;
+    int max_recent_files;
+};
+
+class ConfigManager {
+public:
+    ConfigManager();
+
+    Result<void> load(const std::string& path);
+    Result<void> save(const std::string& path);
+    Result<void> load_default();  // Load from default location
+
+    VideoConfig& video();
+    AudioConfig& audio();
+    OSDConfig& osd();
+    GeneralConfig& general();
+
+    const VideoConfig& video() const;
+    const AudioConfig& audio() const;
+    const OSDConfig& osd() const;
+    const GeneralConfig& general() const;
+
+    void add_recent_file(const std::string& path);
+
+private:
+    VideoConfig video_config_;
+    AudioConfig audio_config_;
+    OSDConfig osd_config_;
+    GeneralConfig general_config_;
+    std::string config_path_;
+};
+
+} // namespace crayon
+```
+
+#### FileBrowser
+
+Interactive file picker with directory navigation and extension filtering.
+
+```cpp
+namespace crayon {
+
+enum class FileType {
+    Cartridge,  // .rom, .bin
+    ROM,        // .rom, .bin
+    K7,         // .k7
+    SaveState,  // .state
+    Any
+};
+
+struct FileEntry {
+    std::string name;
+    std::string full_path;
+    bool is_directory;
+    size_t size;
+};
+
+class FileBrowser {
+public:
+    FileBrowser();
+
+    void initialize(TextRenderer* text_renderer, ConfigManager* config);
+    void open(FileType type, const std::string& initial_dir = "");
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_open() const;
+    bool has_selection() const;
+    std::string get_selected_path();
+
+private:
+    void scan_directory(const std::string& path);
+    void navigate_up();
+    void navigate_into(const std::string& dir);
+    bool matches_filter(const std::string& filename) const;
+
+    std::vector<FileEntry> entries_;
+    std::string current_dir_;
+    size_t selected_index_;
+    FileType filter_type_;
+    bool open_;
+    std::string selected_path_;
+    TextRenderer* text_renderer_;
+    ConfigManager* config_;
+};
+
+} // namespace crayon
+```
+
+#### OSDRenderer
+
+On-screen display for FPS counter, notifications, and status bar.
+
+```cpp
+namespace crayon {
+
+struct Notification {
+    std::string message;
+    uint32_t start_time_ms;
+    uint32_t duration_ms;
+};
+
+class OSDRenderer {
+public:
+    OSDRenderer();
+
+    void initialize(TextRenderer* text_renderer, ConfigManager* config);
+    void render(uint32_t* framebuffer, int width, int height, uint32_t current_time_ms);
+
+    void set_fps(float fps);
+    void show_notification(const std::string& message, uint32_t duration_ms = 3000);
+    void set_status(const std::string& status);
+
+    void set_fps_enabled(bool enabled);
+    bool is_fps_enabled() const;
+
+private:
+    void render_fps(uint32_t* framebuffer, int width, int height);
+    void render_notifications(uint32_t* framebuffer, int width, int height, uint32_t current_time_ms);
+    void render_status_bar(uint32_t* framebuffer, int width, int height);
+
+    float current_fps_;
+    std::vector<Notification> notifications_;
+    std::string status_text_;
+    TextRenderer* text_renderer_;
+    ConfigManager* config_;
+};
+
+} // namespace crayon
+```
+
+#### Dialogs
+
+Modal dialog components for user interaction.
+
+```cpp
+namespace crayon {
+
+enum class DialogResult {
+    None,
+    OK,
+    Cancel,
+    Yes,
+    No
+};
+
+class MessageDialog {
+public:
+    MessageDialog();
+
+    void show(const std::string& title, const std::string& message);
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_open() const;
+    DialogResult get_result();
+
+private:
+    std::string title_;
+    std::string message_;
+    bool open_;
+    DialogResult result_;
+};
+
+class ConfirmDialog {
+public:
+    ConfirmDialog();
+
+    void show(const std::string& title, const std::string& message);
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_open() const;
+    DialogResult get_result();
+
+private:
+    std::string title_;
+    std::string message_;
+    bool open_;
+    DialogResult result_;
+    bool yes_selected_;  // true = Yes, false = No
+};
+
+class ProgressDialog {
+public:
+    ProgressDialog();
+
+    void show(const std::string& title, const std::string& message);
+    void update_progress(float progress);  // 0.0 - 1.0
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+
+    bool is_open() const;
+
+private:
+    std::string title_;
+    std::string message_;
+    float progress_;
+    bool open_;
+};
+
+} // namespace crayon
+```
+
+#### InputMapper
+
+Input configuration UI for keyboard remapping and joystick setup.
+
+```cpp
+namespace crayon {
+
+struct JoystickInput {
+    int device_id;
+    int button;
+    int axis;
+    int hat;
+};
+
+struct JoystickInfo {
+    int device_id;
+    std::string name;
+    int num_buttons;
+    int num_axes;
+    int num_hats;
+};
+
+class InputMapper {
+public:
+    InputMapper();
+
+    void initialize(TextRenderer* text_renderer, ConfigManager* config);
+    void open();
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_open() const;
+
+    // Keyboard mapping
+    void set_key_mapping(MO5Key mo5_key, int host_key);
+    int get_key_mapping(MO5Key mo5_key) const;
+
+    // Joystick configuration
+    void detect_joysticks();
+    std::vector<JoystickInfo> get_joysticks() const;
+    void map_joystick_button(MO5Key mo5_key, const JoystickInput& input);
+
+    Result<void> save_mappings();
+    Result<void> load_mappings();
+
+private:
+    std::map<MO5Key, int> key_mappings_;
+    std::map<MO5Key, JoystickInput> joystick_mappings_;
+    std::vector<JoystickInfo> joysticks_;
+    bool open_;
+    bool waiting_for_input_;
+    MO5Key mapping_target_;
+    TextRenderer* text_renderer_;
+    ConfigManager* config_;
+};
+
+} // namespace crayon
+```
+
+#### SaveStateManagerUI
+
+UI layer for save state management with thumbnails and metadata.
+
+```cpp
+namespace crayon {
+
+struct SaveStateInfo {
+    int slot;
+    std::string timestamp;
+    std::vector<uint8_t> thumbnail;  // 64x40 RGBA thumbnail
+    bool occupied;
+};
+
+class SaveStateManagerUI {
+public:
+    SaveStateManagerUI();
+
+    void initialize(TextRenderer* text_renderer, SaveStateManager* save_state_mgr);
+    void open();
+    void close();
+
+    void render(uint32_t* framebuffer, int width, int height);
+    void handle_input(int key, bool pressed);
+
+    bool is_open() const;
+    bool has_action() const;
+
+    enum class Action { None, Save, Load, Delete };
+    Action get_action();
+    int get_selected_slot();
+    void clear_action();
+
+    void capture_thumbnail(const uint32_t* framebuffer, int width, int height);
+    std::vector<SaveStateInfo> list_states();
+    Result<void> delete_state(int slot);
+
+private:
+    std::vector<SaveStateInfo> states_;
+    int selected_slot_;
+    bool open_;
+    Action pending_action_;
+    TextRenderer* text_renderer_;
+    SaveStateManager* save_state_mgr_;
+};
+
+} // namespace crayon
+```
+
+#### TextRenderer
+
+Bitmap font rendering for all UI text.
+
+```cpp
+namespace crayon {
+
+enum class TextAlign {
+    Left,
+    Center,
+    Right
+};
+
+class TextRenderer {
+public:
+    TextRenderer();
+
+    Result<void> load_font(const std::string& path);
+    Result<void> load_default_font();
+
+    void render_text(uint32_t* framebuffer, int fb_width, int fb_height,
+                     const std::string& text, int x, int y,
+                     uint32_t color, TextAlign align = TextAlign::Left);
+
+    void render_text_with_shadow(uint32_t* framebuffer, int fb_width, int fb_height,
+                                  const std::string& text, int x, int y,
+                                  uint32_t color, uint32_t shadow_color);
+
+    int measure_text_width(const std::string& text) const;
+    int get_font_height() const;
+
+private:
+    struct Glyph {
+        uint8_t width;
+        uint8_t height;
+        std::vector<uint8_t> bitmap;  // 1 bit per pixel
+    };
+
+    std::map<char, Glyph> glyphs_;
+    int font_height_;
+};
+
+} // namespace crayon
+```
+
+#### RecentFilesList
+
+Tracks recently loaded files for quick access.
+
+```cpp
+namespace crayon {
+
+class RecentFilesList {
+public:
+    RecentFilesList();
+
+    void initialize(ConfigManager* config);
+    void add_file(const std::string& path);
+    void clear();
+
+    std::vector<std::string> get_files() const;
+    int get_max_files() const;
+    void set_max_files(int max);
+
+private:
+    std::vector<std::string> files_;
+    int max_files_;
+    ConfigManager* config_;
+};
+
+} // namespace crayon
+```
+
+#### ZIPHandler
+
+Extracts ROM, cartridge, and K7 files from ZIP archives.
+
+```cpp
+namespace crayon {
+
+class ZIPHandler {
+public:
+    ZIPHandler();
+
+    bool is_zip_file(const std::string& path) const;
+    Result<std::vector<std::string>> list_contents(const std::string& zip_path);
+    Result<std::vector<uint8_t>> extract_file(const std::string& zip_path,
+                                               const std::string& filename);
+
+    // Extract first file matching extension
+    Result<std::vector<uint8_t>> extract_by_extension(const std::string& zip_path,
+                                                       const std::string& extension);
+
+private:
+    bool has_extension(const std::string& filename, const std::string& ext) const;
+};
+
+} // namespace crayon
+```
+
+#### UI Integration with SDLFrontend
+
+The SDLFrontend coordinates all UI components and integrates them with the emulator core.
+
+```cpp
+namespace crayon {
+
+class SDLFrontend {
+public:
+    SDLFrontend();
+
+    Result<void> initialize(EmulatorCore* core);
+    void shutdown();
+
+    void run();  // Main loop
+
+private:
+    void handle_events();
+    void render_frame();
+    void update_audio();
+
+    void handle_menu_action(MenuAction action);
+    void handle_file_selection();
+
+    EmulatorCore* core_;
+    SDL_Window* window_;
+    SDL_Renderer* renderer_;
+    SDL_Texture* texture_;
+
+    // UI components
+    MenuSystem menu_system_;
+    ConfigManager config_manager_;
+    FileBrowser file_browser_;
+    OSDRenderer osd_renderer_;
+    MessageDialog message_dialog_;
+    ConfirmDialog confirm_dialog_;
+    ProgressDialog progress_dialog_;
+    InputMapper input_mapper_;
+    SaveStateManagerUI save_state_ui_;
+    TextRenderer text_renderer_;
+    RecentFilesList recent_files_;
+    ZIPHandler zip_handler_;
+
+    bool running_;
+    uint32_t last_frame_time_;
+};
+
+} // namespace crayon
+```
+
 
 ## Data Models
 
@@ -896,6 +1469,222 @@ struct SaveState {
 } // namespace crayon
 ```
 
+### UI Data Models (Requirement 19)
+
+Data structures for UI state and configuration.
+
+```cpp
+namespace crayon {
+
+// MenuItem struct for menu entries
+struct MenuItem {
+    std::string label;
+    MenuAction action;
+    std::vector<MenuItem> submenu;
+    bool enabled;
+    std::string shortcut;
+};
+
+// FileEntry struct for file browser entries
+struct FileEntry {
+    std::string name;
+    std::string full_path;
+    bool is_directory;
+    size_t size;
+};
+
+// SaveStateInfo struct for save state metadata
+struct SaveStateInfo {
+    int slot;
+    std::string timestamp;
+    std::vector<uint8_t> thumbnail;  // 64x40 RGBA thumbnail
+    bool occupied;
+};
+
+// JoystickInput struct for joystick configuration
+struct JoystickInput {
+    int device_id;
+    int button;
+    int axis;
+    int hat;
+};
+
+// JoystickInfo struct for joystick device information
+struct JoystickInfo {
+    int device_id;
+    std::string name;
+    int num_buttons;
+    int num_axes;
+    int num_hats;
+};
+
+// Notification struct for OSD messages
+struct Notification {
+    std::string message;
+    uint32_t start_time_ms;
+    uint32_t duration_ms;
+};
+
+} // namespace crayon
+```
+
+### UI Integration Points and Rendering Pipeline (Requirement 19)
+
+#### Integration with EmulatorCore
+
+The UI layer integrates with the emulator core through well-defined interfaces:
+
+```mermaid
+graph TB
+    subgraph "UI Layer"
+        MENU[MenuSystem]
+        FB[FileBrowser]
+        OSD[OSDRenderer]
+        DIALOG[Dialogs]
+        MAPPER[InputMapper]
+        SSUI[SaveStateManagerUI]
+    end
+
+    subgraph "Frontend"
+        SDL[SDLFrontend]
+        CONFIG[ConfigManager]
+        TEXT[TextRenderer]
+    end
+
+    subgraph "Emulator Core"
+        CORE[EmulatorCore]
+        INPUT[InputHandler]
+        SAVESTATE[SaveStateManager]
+    end
+
+    SDL --> MENU
+    SDL --> FB
+    SDL --> OSD
+    SDL --> DIALOG
+    SDL --> MAPPER
+    SDL --> SSUI
+
+    MENU --> CONFIG
+    FB --> CONFIG
+    MAPPER --> CONFIG
+    SSUI --> SAVESTATE
+
+    MENU --> CORE
+    FB --> CORE
+    MAPPER --> INPUT
+    SSUI --> CORE
+
+    TEXT --> MENU
+    TEXT --> FB
+    TEXT --> OSD
+    TEXT --> DIALOG
+    TEXT --> MAPPER
+    TEXT --> SSUI
+```
+
+#### UI Rendering Pipeline
+
+UI elements are rendered as overlays on top of the emulator framebuffer:
+
+```mermaid
+sequenceDiagram
+    participant SDL as SDLFrontend
+    participant CORE as EmulatorCore
+    participant GA as GateArray
+    participant OSD as OSDRenderer
+    participant MENU as MenuSystem
+    participant DIALOG as Dialogs
+    participant TEXT as TextRenderer
+
+    SDL->>CORE: run_frame()
+    CORE->>GA: render_frame()
+    GA-->>CORE: framebuffer (320x200)
+    CORE-->>SDL: framebuffer
+
+    SDL->>OSD: render(framebuffer)
+    OSD->>TEXT: render FPS text
+    OSD->>TEXT: render notifications
+    OSD->>TEXT: render status bar
+    TEXT-->>OSD: text pixels on framebuffer
+
+    alt Menu is visible
+        SDL->>MENU: render(framebuffer)
+        MENU->>TEXT: render menu items
+        TEXT-->>MENU: text pixels on framebuffer
+    end
+
+    alt Dialog is open
+        SDL->>DIALOG: render(framebuffer)
+        DIALOG->>TEXT: render dialog text
+        TEXT-->>DIALOG: text pixels on framebuffer
+    end
+
+    SDL->>SDL: present framebuffer to display
+```
+
+#### Configuration File Format (INI)
+
+The ConfigManager persists settings in INI format with the following structure:
+
+```ini
+[General]
+last_cartridge_dir=/home/user/roms/mo5/cartridges
+last_rom_dir=/home/user/roms/mo5/system
+last_k7_dir=/home/user/roms/mo5/cassettes
+auto_load_last_file=true
+max_recent_files=10
+recent_file_0=/home/user/roms/mo5/game1.k7
+recent_file_1=/home/user/roms/mo5/game2.k7
+
+[Video]
+scaling_filter=nearest  # nearest, linear, sharp
+aspect_ratio=original   # original, stretch, fit
+fullscreen=false
+window_scale=3          # 1-5
+
+[Audio]
+volume=0.8              # 0.0 - 1.0
+muted=false
+buffer_size=2048        # samples
+
+[OSD]
+fps_enabled=true
+fps_position=top_right  # top_left, top_right, bottom_left, bottom_right
+opacity=0.8             # 0.0 - 1.0
+notification_duration_ms=3000
+
+[Input]
+# Keyboard mappings: mo5_key=host_sdl_scancode
+key_A=4
+key_B=5
+key_C=6
+# ... (all MO5 keys mapped)
+
+# Joystick mappings (optional)
+joystick_device_id=0
+joystick_button_A=0
+joystick_button_B=1
+```
+
+#### UI Component Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Initialized: SDLFrontend::initialize()
+    Initialized --> Running: run()
+    Running --> MenuOpen: User presses menu key
+    MenuOpen --> Running: Menu closed
+    Running --> FileBrowserOpen: Menu action: Load file
+    FileBrowserOpen --> Running: File selected/cancelled
+    Running --> DialogOpen: Confirmation needed
+    DialogOpen --> Running: Dialog closed
+    Running --> InputMapperOpen: Menu action: Configure input
+    InputMapperOpen --> Running: Mapping saved/cancelled
+    Running --> SaveStateUIOpen: Menu action: Save/Load state
+    SaveStateUIOpen --> Running: State saved/loaded/cancelled
+    Running --> [*]: Quit action
+```
+
 
 ## Correctness Properties
 
@@ -1069,6 +1858,36 @@ struct SaveState {
 
 **Validates: Requirements 15.5**
 
+### Property 29: Configuration round-trip
+
+*For any* valid configuration state (video, audio, OSD, general settings), saving the configuration to INI format and loading it back shall produce an equivalent configuration state.
+
+**Validates: Requirements 19.32**
+
+### Property 30: Save state metadata round-trip
+
+*For any* valid save state metadata (slot number, timestamp, thumbnail data), serializing the metadata to storage and deserializing it back shall produce identical metadata values.
+
+**Validates: Requirements 19.33**
+
+### Property 31: File browser path validation
+
+*For any* file path returned by the FileBrowser, the path shall be absolute and point to an existing file or directory.
+
+**Validates: Requirements 19.30**
+
+### Property 32: Recent files list ordering
+
+*For any* sequence of file additions to the RecentFilesList, the most recently added file shall appear first in the list, and the list size shall not exceed the configured maximum.
+
+**Validates: Requirements 19.26, 19.27**
+
+### Property 33: Input mapping persistence
+
+*For any* valid input mapping configuration (keyboard and joystick mappings), saving the mappings through ConfigManager and loading them back shall restore the exact mapping state.
+
+**Validates: Requirements 19.20**
+
 
 ## Error Handling
 
@@ -1169,6 +1988,11 @@ Both are complementary: unit tests catch concrete bugs with known inputs, proper
 - Property test: Property 26 (audio buzzer square wave)
 - Unit tests: libretro API compliance, system info reporting, pixel format verification
 
+**Milestone 9: UI Layer Components**
+- Property tests: Properties 29-33 (config round-trip, save state metadata round-trip, file browser path validation, recent files ordering, input mapping persistence)
+- Unit tests: menu navigation, file browser directory traversal, OSD rendering, dialog interactions, text rendering, ZIP extraction
+- Integration tests: menu actions triggering emulator functions, config persistence across sessions, save state UI with thumbnails
+
 ### Test File Structure
 
 ```
@@ -1189,5 +2013,20 @@ tests/
 ├── test_light_pen_properties.cpp # Property test for light pen (Property 19)
 ├── test_emulator.cpp             # Integration tests
 ├── test_emulator_properties.cpp  # Property tests for emulator (Properties 22-23, 26-27)
-└── test_libretro.cpp             # Libretro API tests
+├── test_libretro.cpp             # Libretro API tests
+├── test_ui_config.cpp            # Unit tests for ConfigManager
+├── test_ui_config_properties.cpp # Property tests for config (Property 29)
+├── test_ui_menu.cpp              # Unit tests for MenuSystem
+├── test_ui_file_browser.cpp      # Unit tests for FileBrowser
+├── test_ui_file_browser_properties.cpp # Property test for file browser (Property 31)
+├── test_ui_osd.cpp               # Unit tests for OSDRenderer
+├── test_ui_dialogs.cpp           # Unit tests for Dialogs
+├── test_ui_input_mapper.cpp      # Unit tests for InputMapper
+├── test_ui_input_mapper_properties.cpp # Property test for input mapping (Property 33)
+├── test_ui_save_state_ui.cpp     # Unit tests for SaveStateManagerUI
+├── test_ui_save_state_ui_properties.cpp # Property test for save state metadata (Property 30)
+├── test_ui_text_renderer.cpp     # Unit tests for TextRenderer
+├── test_ui_recent_files.cpp      # Unit tests for RecentFilesList
+├── test_ui_recent_files_properties.cpp # Property test for recent files (Property 32)
+└── test_ui_zip_handler.cpp       # Unit tests for ZIPHandler
 ```

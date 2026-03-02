@@ -4,33 +4,37 @@
 #include <string>
 #include <cstdint>
 #include <SDL.h>
-#include "ui/text_renderer.h"
+
+class TextRenderer;
+class ConfigManager;
 
 class OSDRenderer {
 public:
     enum class OSDPosition { TopLeft, TopRight, BottomLeft, BottomRight };
-    enum class FontSize { Small, Medium, Large };
 
-    OSDRenderer(SDL_Renderer* renderer);
+    OSDRenderer(SDL_Renderer* renderer, TextRenderer* text_renderer, ConfigManager* config);
     ~OSDRenderer();
 
-    bool initialize();
-    void render_fps(float fps, OSDPosition position);
-    void render_notification(const std::string& message, OSDPosition position);
+    void render_fps(float fps);
+    void render_notification();
     void render_status_bar(const std::string& text);
-    void set_font_size(FontSize size);
-    void set_opacity(int opacity);
+    void set_opacity(uint8_t opacity);
     void show_notification(const std::string& message, int duration_ms);
     void update(uint32_t current_time);
-
-    FontSize get_font_size() const { return font_size_; }
-    int get_opacity() const { return opacity_; }
+    
+    bool is_fps_enabled() const;
+    void set_fps_enabled(bool enabled);
+    OSDPosition get_fps_position() const;
+    void set_fps_position(OSDPosition position);
+    uint8_t get_opacity() const { return opacity_; }
 
 private:
+    void get_position_coords(OSDPosition position, int text_width, int text_height, int& x, int& y);
+    
     SDL_Renderer* renderer_;
-    TextRenderer text_renderer_;
-    FontSize font_size_ = FontSize::Medium;
-    int opacity_ = 100;
+    TextRenderer* text_renderer_;
+    ConfigManager* config_;
+    uint8_t opacity_ = 200;
     std::string current_notification_;
     uint32_t notification_start_time_ = 0;
     int notification_duration_ = 0;

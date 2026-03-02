@@ -414,6 +414,183 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
 - [x] 16. Final checkpoint — Full integration
   - Ensure all tests pass, ask the user if questions arise.
 
+- [x] 17. Milestone 9 — UI Layer Components
+  - [x] 17.1 Implement TextRenderer for bitmap font rendering
+    - Create TextRenderer class with font loading and text rendering
+    - Implement render_text() with alignment support (left, center, right)
+    - Implement render_text_with_shadow() for better readability
+    - Implement measure_text_width() and get_font_height() for layout
+    - Load default embedded bitmap font
+    - _Requirements: 19.25_
+  - [x] 17.2 Implement ConfigManager for INI-based configuration
+    - Create ConfigManager class with INI file parsing and writing
+    - Implement video config: scaling filter, aspect ratio, fullscreen, window scale
+    - Implement audio config: volume, mute, buffer size
+    - Implement OSD config: FPS enabled, FPS position, opacity, notification duration
+    - Implement general config: last directories, auto-load, recent files list
+    - Implement load() and save() methods with error handling
+    - Create default config file in user directory if not exists
+    - _Requirements: 19.3, 19.4, 19.5, 19.6, 19.7_
+  - [x] 17.3 Implement MenuSystem for in-game overlay menu
+    - Create MenuSystem class with menu navigation (up/down/select/back)
+    - Build main menu structure with submenus
+    - Implement menu actions: LoadBasicROM, LoadMonitorROM, LoadCartridge, LoadK7, Reset, Pause, Resume, SaveState, LoadState, Screenshot, ToggleFPS, ToggleDebugger, ToggleFullscreen, Quit
+    - Implement menu rendering with TextRenderer
+    - Integrate with ConfigManager for menu state persistence
+    - _Requirements: 19.1, 19.2_
+  - [x] 17.4 Implement FileBrowser for interactive file selection
+    - Create FileBrowser class with directory navigation
+    - Implement scan_directory() to list files and subdirectories
+    - Implement file filtering by extension (cartridge: .rom/.bin, ROM: .rom/.bin, K7: .k7)
+    - Implement navigate_up() and navigate_into() for directory traversal
+    - Implement file selection and return absolute path
+    - Integrate with ConfigManager to remember last directory per file type
+    - Render file list with TextRenderer
+    - _Requirements: 19.8, 19.9, 19.10, 19.30_
+  - [x] 17.5 Implement OSDRenderer for on-screen display
+    - Create OSDRenderer class with FPS counter rendering
+    - Implement show_notification() with timed message display
+    - Implement render_status_bar() for emulator state
+    - Implement configurable position (top-left, top-right, bottom-left, bottom-right)
+    - Implement configurable opacity for all OSD elements
+    - Integrate with ConfigManager for OSD settings
+    - Use TextRenderer for all text rendering
+    - _Requirements: 19.11, 19.12, 19.13, 19.14_
+  - [x] 17.6 Implement Dialogs for user interaction
+    - Create MessageDialog class for information messages
+    - Create ConfirmDialog class for yes/no prompts
+    - Create ProgressDialog class for long operations
+    - Implement modal overlay rendering with semi-transparent background
+    - Implement keyboard navigation for dialog buttons
+    - Use TextRenderer for dialog text
+    - _Requirements: 19.15, 19.16, 19.17_
+  - [x] 17.7 Implement InputMapper for input configuration
+    - Create InputMapper class with keyboard remapping UI
+    - Implement detect_joysticks() to enumerate connected joysticks
+    - Implement set_key_mapping() and get_key_mapping() for keyboard
+    - Implement map_joystick_button() for joystick configuration
+    - Implement save_mappings() and load_mappings() through ConfigManager
+    - Render input mapping UI with TextRenderer
+    - _Requirements: 19.18, 19.19, 19.20_
+  - [x] 17.8 Implement SaveStateManagerUI for save state management
+    - Create SaveStateManagerUI class with slot-based UI
+    - Implement capture_thumbnail() to create 64x40 RGBA thumbnails from framebuffer
+    - Implement list_states() to show all save slots with metadata
+    - Implement delete_state() for individual slot deletion
+    - Store metadata: timestamp, slot number, thumbnail
+    - Integrate with core SaveStateManager for actual save/load operations
+    - Render save state UI with thumbnails and TextRenderer
+    - _Requirements: 19.21, 19.22, 19.23, 19.24_
+  - [x] 17.9 Implement RecentFilesList for recent files tracking
+    - Create RecentFilesList class with add_file() and get_files()
+    - Implement max files limit (configurable, default 10)
+    - Integrate with ConfigManager for persistence
+    - Maintain most-recent-first ordering
+    - Integrate with MenuSystem for quick access menu
+    - _Requirements: 19.26, 19.27_
+  - [x] 17.10 Implement ZIPHandler for archive extraction
+    - Create ZIPHandler class with is_zip_file() detection
+    - Implement list_contents() to enumerate files in ZIP
+    - Implement extract_file() to extract specific file by name
+    - Implement extract_by_extension() to extract first matching file
+    - Support ROM, cartridge, and K7 files in ZIP archives
+    - Return extracted data as byte vector for loading
+    - _Requirements: 19.28, 19.29_
+  - [x] 17.11 Integrate UI components with SDLFrontend
+    - Initialize all UI components in SDLFrontend::initialize()
+    - Wire MenuSystem to handle menu key press (F1 or similar)
+    - Wire FileBrowser to MenuSystem file loading actions
+    - Wire OSDRenderer to render on every frame
+    - Wire Dialogs to show for confirmations and messages
+    - Wire InputMapper to menu action for input configuration
+    - Wire SaveStateManagerUI to menu actions for save/load state
+    - Handle UI input events before emulator input
+    - Render UI overlays after emulator framebuffer
+    - _Requirements: 19.1, 19.2, 19.8, 19.11, 19.15, 19.18, 19.21_
+  - [ ]* 17.12 Write unit tests for ConfigManager
+    - Test INI file parsing and writing
+    - Test default value handling
+    - Test config file creation
+    - Test all config sections (video, audio, OSD, general)
+    - _Requirements: 19.3, 19.4, 19.5, 19.6, 19.7_
+  - [ ]* 17.13 Write property tests for config round-trip
+    - **Property 29: Configuration round-trip**
+    - Generate random config states; save to INI; load back; verify equivalent
+    - **Validates: Requirements 19.32**
+  - [ ]* 17.14 Write unit tests for MenuSystem
+    - Test menu navigation (up/down/select/back)
+    - Test submenu traversal
+    - Test menu action triggering
+    - Test menu rendering
+    - _Requirements: 19.1, 19.2_
+  - [ ]* 17.15 Write unit tests for FileBrowser
+    - Test directory scanning
+    - Test file filtering by extension
+    - Test directory navigation (up/into)
+    - Test file selection
+    - _Requirements: 19.8, 19.9, 19.10_
+  - [ ]* 17.16 Write property tests for file browser path validation
+    - **Property 31: File browser path validation**
+    - Generate random file selections; verify returned paths are absolute and exist
+    - **Validates: Requirements 19.30**
+  - [ ]* 17.17 Write unit tests for OSDRenderer
+    - Test FPS counter rendering
+    - Test notification display and timeout
+    - Test status bar rendering
+    - Test position configuration
+    - Test opacity configuration
+    - _Requirements: 19.11, 19.12, 19.13, 19.14_
+  - [ ]* 17.18 Write unit tests for Dialogs
+    - Test MessageDialog display and dismissal
+    - Test ConfirmDialog yes/no selection
+    - Test ProgressDialog progress updates
+    - _Requirements: 19.15, 19.16, 19.17_
+  - [ ]* 17.19 Write unit tests for InputMapper
+    - Test keyboard remapping
+    - Test joystick detection
+    - Test joystick button mapping
+    - Test mapping persistence
+    - _Requirements: 19.18, 19.19, 19.20_
+  - [ ]* 17.20 Write property tests for input mapping persistence
+    - **Property 33: Input mapping persistence**
+    - Generate random input mappings; save; load back; verify identical
+    - **Validates: Requirements 19.20**
+  - [ ]* 17.21 Write unit tests for SaveStateManagerUI
+    - Test thumbnail capture
+    - Test save state listing
+    - Test save state deletion
+    - Test metadata storage
+    - _Requirements: 19.21, 19.22, 19.23, 19.24_
+  - [ ]* 17.22 Write property tests for save state metadata round-trip
+    - **Property 30: Save state metadata round-trip**
+    - Generate random metadata; serialize; deserialize; verify identical
+    - **Validates: Requirements 19.33**
+  - [ ]* 17.23 Write unit tests for RecentFilesList
+    - Test file addition
+    - Test max files limit
+    - Test most-recent-first ordering
+    - Test persistence through ConfigManager
+    - _Requirements: 19.26, 19.27_
+  - [ ]* 17.24 Write property tests for recent files ordering
+    - **Property 32: Recent files list ordering**
+    - Generate random file addition sequences; verify ordering and size limit
+    - **Validates: Requirements 19.26, 19.27**
+  - [ ]* 17.25 Write unit tests for ZIPHandler
+    - Test ZIP file detection
+    - Test content listing
+    - Test file extraction by name
+    - Test file extraction by extension
+    - _Requirements: 19.28, 19.29_
+  - [ ]* 17.26 Write unit tests for TextRenderer
+    - Test text rendering
+    - Test text alignment (left, center, right)
+    - Test text with shadow
+    - Test text width measurement
+    - _Requirements: 19.25_
+
+- [ ] 18. Checkpoint — UI layer integration complete
+  - Ensure all UI tests pass, ask the user if questions arise.
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for faster MVP

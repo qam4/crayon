@@ -67,6 +67,8 @@ def run_sdl_mode(exe_path, args, extra_args):
         cmd.extend(["--cartridge", args.cartridge])
     if args.cassette:
         cmd.extend(["--cassette", args.cassette])
+    if args.debugger:
+        cmd.append("--debugger")
     cmd.extend(extra_args)
 
     print("Command:", " ".join(cmd))
@@ -114,6 +116,7 @@ def main():
 Examples:
   %(prog)s                          # SDL mode, boot to BASIC prompt
   %(prog)s sdl                      # SDL mode
+  %(prog)s sdl --debugger           # SDL mode with debugger enabled (F5 to toggle)
   %(prog)s headless                 # Headless mode, 200 frames, auto-screenshot
   %(prog)s headless --frames 500    # Headless mode, 500 frames
   %(prog)s sdl --cassette "roms/Yeti (1984) (Loriciels).k7"  # Load a K7 cassette
@@ -179,6 +182,12 @@ Examples:
         "--screenshot",
         default=None,
         help="Path to save screenshot (headless mode)"
+    )
+
+    parser.add_argument(
+        "--debugger",
+        action="store_true",
+        help="Enable debugger (F5 to toggle)"
     )
 
     args, extra_args = parser.parse_known_args()

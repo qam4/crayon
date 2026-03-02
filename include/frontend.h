@@ -37,6 +37,7 @@ enum class MenuAction {
     LoadBasicROM,
     LoadMonitorROM,
     LoadCartridge,
+    LoadK7,
     Reset,
     Pause,
     Resume,

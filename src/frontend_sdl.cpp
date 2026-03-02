@@ -7,6 +7,7 @@
 #include "ui/dialogs.h"
 #include "ui/recent_files_list.h"
 #include "ui/save_state_manager.h"
+#include "ui/osd_renderer.h"
 #include <iostream>
 
 namespace crayon {
@@ -19,10 +20,33 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
     if (!init_video()) return false;
     if (!init_audio()) return false;
 
+    // Initialize UI components
+    text_renderer_ = std::make_unique<TextRenderer>(renderer_);
+    if (!text_renderer_->initialize()) {
+        std::cerr << "Failed to initialize TextRenderer\n";
+        return false;
+    }
+    
+    config_manager_ = std::make_unique<ConfigManager>();
+    config_manager_->load();
+    
+    menu_system_ = std::make_unique<MenuSystem>(renderer_, text_renderer_.get());
+    file_browser_ = std::make_unique<FileBrowser>(renderer_, text_renderer_.get(), config_manager_.get());
+    osd_renderer_ = std::make_unique<OSDRenderer>(renderer_, text_renderer_.get(), config_manager_.get());
+    message_dialog_ = std::make_unique<MessageDialog>(renderer_, text_renderer_.get());
+    progress_dialog_ = std::make_unique<ProgressDialog>(renderer_, text_renderer_.get());
+    zip_handler_ = std::make_unique<ZIPHandler>();
+    recent_cartridges_ = std::make_unique<RecentFilesList>(10);
+    recent_roms_ = std::make_unique<RecentFilesList>(10);
+
     Configuration emu_config;
     emu_config.basic_rom_path = config.basic_rom_path;
     emu_config.monitor_rom_path = config.monitor_rom_path;
     emulator_ = std::make_unique<EmulatorCore>(emu_config);
+    
+    // Initialize SaveStateManagerUI after emulator
+    save_state_manager_ = std::make_unique<SaveStateManagerUI>(
+        emulator_.get(), renderer_, text_renderer_.get());
 
     if (!config.basic_rom_path.empty()) emulator_->load_basic_rom(config.basic_rom_path);
     if (!config.monitor_rom_path.empty()) emulator_->load_monitor_rom(config.monitor_rom_path);
@@ -36,11 +60,14 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
 
     if (config.enable_debugger) {
         debugger_ = std::make_unique<Debugger>(emulator_.get());
-        debugger_ui_ = std::make_unique<DebuggerUI>(debugger_.get());
         emulator_->set_debugger(debugger_.get());
         imgui_debugger_ui_ = std::make_unique<ImGuiDebuggerUI>(
             debugger_.get(), emulator_.get(), window_, renderer_);
-        imgui_debugger_ui_->initialize();
+        if (!imgui_debugger_ui_->initialize()) {
+            std::cerr << "Failed to initialize ImGui debugger UI\n";
+            imgui_debugger_ui_.reset();
+            debugger_.reset();
+        }
     }
 
     emulator_->reset();
@@ -59,6 +86,14 @@ void SDLFrontend::run() {
     while (running_) {
         if (frame_limit_ > 0 && frame_count_ >= frame_limit_) { running_ = false; break; }
         process_input();
+        // Sync pause state from debugger (ImGui buttons set debugger state directly)
+        if (debugger_) {
+            bool dbg_paused = debugger_->is_paused();
+            if (dbg_paused != paused_) {
+                paused_ = dbg_paused;
+                emulator_->set_paused(paused_);
+            }
+        }
         if (!paused_) emulator_->run_frame();
         render_frame();
         process_audio();
@@ -70,12 +105,55 @@ bool SDLFrontend::is_running() const { return running_; }
 
 void SDLFrontend::render_frame() {
     if (!renderer_ || !texture_) return;
+    
+    // Render emulator framebuffer
     const uint32* fb = emulator_->get_framebuffer();
     if (fb) SDL_UpdateTexture(texture_, nullptr, fb, DISPLAY_WIDTH * sizeof(uint32_t));
     SDL_RenderClear(renderer_);
     SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
-    if (imgui_debugger_ui_ && imgui_debugger_ui_->is_visible())
+    
+    // Render UI overlays (after emulator framebuffer)
+    if (osd_renderer_) {
+        osd_renderer_->render_fps(current_fps_);
+        osd_renderer_->render_notification();
+    }
+    
+    if (menu_system_ && menu_system_->is_open()) {
+        menu_system_->render();
+    }
+    
+    if (file_browser_ && file_browser_->is_open()) {
+        file_browser_->render();
+    }
+    
+    if (save_state_manager_ && save_state_manager_->is_ui_visible()) {
+        save_state_manager_->render_ui("current_game"); // TODO: Get actual game name
+    }
+    
+    if (message_dialog_ && message_dialog_->is_visible()) {
+        message_dialog_->render();
+    }
+    
+    if (progress_dialog_ && progress_dialog_->is_visible()) {
+        progress_dialog_->render();
+    }
+    
+    // Render pause indicator (persistent, not a timed notification)
+    if (paused_ && osd_renderer_) {
+        int window_width, window_height;
+        SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
+        SDL_Color pause_color = {255, 255, 0, 200};
+        text_renderer_->render_text_with_shadow("PAUSED", 
+            window_width / 2, window_height / 2 - 10,
+            pause_color, SDL_Color{0, 0, 0, 128},
+            TextRenderer::FontSize::Large, TextRenderer::TextAlign::Center);
+    }
+    
+    // Render debugger UI last (on top of everything) - only if visible
+    if (imgui_debugger_ui_ && imgui_debugger_ui_->is_visible()) {
         imgui_debugger_ui_->render();
+    }
+    
     SDL_RenderPresent(renderer_);
 }
 
@@ -86,11 +164,132 @@ void SDLFrontend::process_audio() {
 void SDLFrontend::process_input() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-        if (imgui_debugger_ui_) imgui_debugger_ui_->process_event(event);
+        // ImGui debugger gets first priority (only if visible)
+        if (imgui_debugger_ui_) {
+            bool is_visible = imgui_debugger_ui_->is_visible();
+            if (is_visible) {
+                imgui_debugger_ui_->process_event(event);
+            }
+        }
+        
+        // Handle UI input before emulator input
+        if (event.type == SDL_KEYDOWN) {
+            // Check if any UI component is active and should handle input
+            if (menu_system_ && menu_system_->is_open()) {
+                auto action = menu_system_->process_input(event.key.keysym.sym);
+                if (action != crayon::MenuAction::None) {
+                    handle_menu_action(action);
+                }
+                continue;
+            }
+            
+            if (file_browser_ && file_browser_->is_open()) {
+                if (file_browser_->process_input(event.key.keysym.sym)) {
+                    // File browser handled the input
+                    if (file_browser_->was_file_selected()) {
+                        std::string selected = file_browser_->get_selected_file();
+                        // TODO: Handle file selection based on context
+                        osd_renderer_->show_notification("File selected: " + selected, 2000);
+                    }
+                    continue;
+                }
+            }
+            
+            if (save_state_manager_ && save_state_manager_->is_ui_visible()) {
+                if (save_state_manager_->process_input(event.key.keysym.sym)) {
+                    continue;
+                }
+            }
+            
+            if (message_dialog_ && message_dialog_->is_visible()) {
+                if (message_dialog_->process_input(event.key.keysym.sym)) {
+                    continue;
+                }
+            }
+            
+            if (progress_dialog_ && progress_dialog_->is_visible()) {
+                if (progress_dialog_->process_input(event.key.keysym.sym)) {
+                    continue;
+                }
+            }
+            
+            // F1 = toggle menu
+            if (event.key.keysym.sym == SDLK_F1) {
+                if (menu_system_->is_open()) {
+                    menu_system_->close();
+                } else {
+                    menu_system_->open();
+                }
+                continue;
+            }
+            
+            // Global hotkeys (when menu is not open)
+            if (!menu_system_->is_open()) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_F2:
+                        handle_menu_action(crayon::MenuAction::LoadBasicROM);
+                        continue;
+                    case SDLK_F3:
+                        handle_menu_action(crayon::MenuAction::LoadMonitorROM);
+                        continue;
+                    case SDLK_F4:
+                        handle_menu_action(crayon::MenuAction::LoadCartridge);
+                        continue;
+                    case SDLK_F5:
+                        if (imgui_debugger_ui_) {
+                            if (imgui_debugger_ui_->is_visible()) {
+                                imgui_debugger_ui_->hide();
+                            } else {
+                                imgui_debugger_ui_->show();
+                            }
+                        } else {
+                            osd_renderer_->show_notification("Debugger not enabled (use --debugger)", 2000);
+                        }
+                        continue;
+                    case SDLK_F6:
+                        handle_menu_action(crayon::MenuAction::LoadK7);
+                        continue;
+                    case SDLK_F7:
+                        handle_menu_action(crayon::MenuAction::Reset);
+                        continue;
+                    case SDLK_F8:
+                        paused_ = !paused_;
+                        emulator_->set_paused(paused_);
+                        if (debugger_) {
+                            if (paused_) debugger_->pause();
+                            else debugger_->continue_execution();
+                        }
+                        osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
+                        continue;
+                    case SDLK_F9:
+                        save_state_manager_->set_mode(true);
+                        save_state_manager_->show_ui(true);
+                        continue;
+                    case SDLK_F10:
+                        save_state_manager_->set_mode(false);
+                        save_state_manager_->show_ui(true);
+                        continue;
+                    case SDLK_F11:
+                        handle_menu_action(crayon::MenuAction::Screenshot);
+                        continue;
+                    case SDLK_F12:
+                        osd_renderer_->set_fps_enabled(!osd_renderer_->is_fps_enabled());
+                        continue;
+                    default:
+                        break;
+                }
+            }
+        }
+        
+        // Handle system events
         switch (event.type) {
-            case SDL_QUIT: running_ = false; break;
-            case SDL_KEYDOWN: handle_keyboard_event(event.key); break;
-            case SDL_KEYUP: handle_keyboard_event(event.key); break;
+            case SDL_QUIT: 
+                running_ = false; 
+                break;
+            case SDL_KEYDOWN: 
+            case SDL_KEYUP:
+                handle_keyboard_event(event.key); 
+                break;
             case SDL_MOUSEMOTION: {
                 int w, h;
                 SDL_GetWindowSize(window_, &w, &h);
@@ -105,6 +304,11 @@ void SDLFrontend::process_input() {
                 emulator_->get_light_pen().set_button_pressed(false);
                 break;
         }
+    }
+    
+    // Update OSD
+    if (osd_renderer_) {
+        osd_renderer_->update(SDL_GetTicks());
     }
 }
 
@@ -172,18 +376,6 @@ void SDLFrontend::cleanup_audio() {
 
 void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
     bool pressed = (event.type == SDL_KEYDOWN);
-    // Escape = toggle pause
-    if (pressed && event.keysym.sym == SDLK_ESCAPE) {
-        paused_ = !paused_;
-        emulator_->set_paused(paused_);
-        return;
-    }
-    // F5 = debugger toggle
-    if (pressed && event.keysym.sym == SDLK_F5 && imgui_debugger_ui_) {
-        if (imgui_debugger_ui_->is_visible()) imgui_debugger_ui_->hide();
-        else imgui_debugger_ui_->show();
-        return;
-    }
     // Translate SDL2 scancode to MO5 key.
     // Mapping strategy: character-based. Press M on PC → get M on MO5.
     // The MO5 ROM's internal character table handles the rest.
@@ -272,11 +464,69 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
 
 void SDLFrontend::handle_menu_action(MenuAction action) {
     switch (action) {
-        case MenuAction::Reset: emulator_->reset(); break;
-        case MenuAction::Pause: paused_ = true; break;
-        case MenuAction::Resume: paused_ = false; break;
-        case MenuAction::Quit: running_ = false; break;
-        default: break;
+        case MenuAction::LoadBasicROM:
+            file_browser_->open(".rom,.bin", FileBrowser::FileType::ROM);
+            break;
+        case MenuAction::LoadMonitorROM:
+            file_browser_->open(".rom,.bin", FileBrowser::FileType::ROM);
+            break;
+        case MenuAction::LoadCartridge:
+            file_browser_->open(".rom,.bin", FileBrowser::FileType::Cartridge);
+            break;
+        case MenuAction::LoadK7:
+            file_browser_->open(".k7", FileBrowser::FileType::Generic);
+            break;
+        case MenuAction::Reset: 
+            emulator_->reset(); 
+            osd_renderer_->show_notification("System Reset", 1500);
+            break;
+        case MenuAction::Pause: 
+        case MenuAction::Resume:
+            paused_ = !paused_;
+            emulator_->set_paused(paused_);
+            if (debugger_) {
+                if (paused_) debugger_->pause();
+                else debugger_->continue_execution();
+            }
+            osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
+            break;
+        case MenuAction::SaveState:
+            save_state_manager_->set_mode(true); // Save mode
+            save_state_manager_->show_ui(true);
+            break;
+        case MenuAction::LoadState:
+            save_state_manager_->set_mode(false); // Load mode
+            save_state_manager_->show_ui(true);
+            break;
+        case MenuAction::Screenshot:
+            save_screenshot("screenshot.png");
+            osd_renderer_->show_notification("Screenshot saved", 1500);
+            break;
+        case MenuAction::ToggleFPS:
+            osd_renderer_->set_fps_enabled(!osd_renderer_->is_fps_enabled());
+            break;
+        case MenuAction::ToggleDebugger:
+            if (imgui_debugger_ui_) {
+                if (imgui_debugger_ui_->is_visible()) {
+                    imgui_debugger_ui_->hide();
+                } else {
+                    imgui_debugger_ui_->show();
+                }
+            } else {
+                osd_renderer_->show_notification("Debugger not enabled (use --debugger)", 2000);
+            }
+            break;
+        case MenuAction::ToggleFullscreen: {
+            uint32_t flags = SDL_GetWindowFlags(window_);
+            bool is_fullscreen = (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+            SDL_SetWindowFullscreen(window_, is_fullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+            break;
+        }
+        case MenuAction::Quit: 
+            running_ = false; 
+            break;
+        default: 
+            break;
     }
 }
 

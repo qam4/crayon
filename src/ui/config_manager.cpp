@@ -21,6 +21,8 @@ std::string ConfigManager::get_last_cartridge_directory() const { return get_val
 void ConfigManager::set_last_cartridge_directory(const std::string& path) { set_value("General", "last_cartridge_dir", path); }
 std::string ConfigManager::get_last_rom_directory() const { return get_value("General", "last_rom_dir", ""); }
 void ConfigManager::set_last_rom_directory(const std::string& path) { set_value("General", "last_rom_dir", path); }
+std::string ConfigManager::get_last_k7_directory() const { return get_value("General", "last_k7_dir", ""); }
+void ConfigManager::set_last_k7_directory(const std::string& path) { set_value("General", "last_k7_dir", path); }
 bool ConfigManager::get_auto_load_last_files() const { return get_value_bool("General", "auto_load", false); }
 void ConfigManager::set_auto_load_last_files(bool enabled) { set_value("General", "auto_load", enabled ? "true" : "false"); }
 
@@ -30,6 +32,8 @@ std::string ConfigManager::get_aspect_ratio() const { return get_value("Video", 
 void ConfigManager::set_aspect_ratio(const std::string& ratio) { set_value("Video", "aspect_ratio", ratio); }
 bool ConfigManager::get_fullscreen() const { return get_value_bool("Video", "fullscreen", false); }
 void ConfigManager::set_fullscreen(bool enabled) { set_value("Video", "fullscreen", enabled ? "true" : "false"); }
+int ConfigManager::get_window_scale() const { return get_value_int("Video", "window_scale", 3); }
+void ConfigManager::set_window_scale(int scale) { set_value("Video", "window_scale", std::to_string(scale)); }
 
 int ConfigManager::get_volume() const { return get_value_int("Audio", "volume", 70); }
 void ConfigManager::set_volume(int volume) { set_value("Audio", "volume", std::to_string(volume)); }

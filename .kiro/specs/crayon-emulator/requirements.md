@@ -28,6 +28,16 @@ Crayon is a Thomson MO5 emulator written in modern C++, built by forking the exi
 - **Framebuffer**: The pixel buffer representing the current video output frame (320x200 resolution)
 - **Master_Clock**: The component managing timing for the externally clocked 6809E at 1 MHz
 - **Video_RAM**: The 16KB of RAM dedicated to video, split into 8KB pixel data (0x0000-0x1FFF) and 8KB color attributes (0x2000-0x3FFF)
+- **Menu_System**: The in-game overlay menu component providing navigation for file loading, emulator control, save states, and settings, carried over from the Videopac_Codebase (src/ui/menu_system.cpp, include/ui/menu_system.h)
+- **Config_Manager**: The INI-based configuration persistence component managing user preferences for video, audio, OSD, and general settings, carried over from the Videopac_Codebase (src/ui/config_manager.cpp, include/ui/config_manager.h)
+- **File_Browser**: The interactive file picker component with directory navigation and extension filtering, carried over from the Videopac_Codebase (src/ui/file_browser.cpp, include/ui/file_browser.h)
+- **OSD_Renderer**: The on-screen display component rendering FPS counter, notifications, and status bar on the Framebuffer, carried over from the Videopac_Codebase (src/ui/osd_renderer.cpp, include/ui/osd_renderer.h)
+- **Dialogs**: The modal dialog components (MessageDialog, ConfirmDialog, ProgressDialog) for user interaction, carried over from the Videopac_Codebase (src/ui/dialogs.cpp, include/ui/dialogs.h)
+- **Input_Mapper**: The input configuration component providing keyboard remapping and joystick configuration UI, carried over from the Videopac_Codebase (src/ui/input_mapper.cpp, include/ui/input_mapper.h)
+- **Save_State_Manager_UI**: The UI layer for save state management with thumbnails and metadata, separate from the core Save_State_Framework, carried over from the Videopac_Codebase (src/ui/save_state_manager.cpp, include/ui/save_state_manager.h)
+- **Text_Renderer**: The bitmap font rendering component for all UI text display, carried over from the Videopac_Codebase (src/ui/text_renderer.cpp, include/ui/text_renderer.h)
+- **Recent_Files_List**: The component tracking recently loaded files for quick access, carried over from the Videopac_Codebase (src/ui/recent_files_list.cpp, include/ui/recent_files_list.h)
+- **ZIP_Handler**: The component for extracting ROM, cartridge, and K7 files from ZIP archives, carried over from the Videopac_Codebase (src/ui/zip_handler.cpp, include/ui/zip_handler.h)
 
 ## Requirements
 
@@ -295,3 +305,43 @@ Crayon is a Thomson MO5 emulator written in modern C++, built by forking the exi
 4. FOR ALL PIA data direction register values, reading the data register SHALL return (output_latch AND DDR) OR (input_pins AND NOT DDR) (invariant property)
 5. FOR ALL valid address ranges, reading from a memory-mapped I/O address in 0xA000-0xA7FF SHALL route to the correct peripheral component (invariant property)
 6. FOR ALL addresses in the reserved range 0xA800-0xBFFF, reads SHALL return 0xFF and writes SHALL have no observable effect (invariant property)
+
+### Requirement 19: UI Layer Components
+
+**User Story:** As a user, I want a complete UI layer with menu system, configuration management, file browser, on-screen display, dialogs, input mapping, save state UI, and file handling, so that I can interact with the emulator without command-line arguments and persist my preferences.
+
+#### Acceptance Criteria
+
+1. THE Menu_System SHALL provide an in-game overlay menu accessible during emulation with navigation for loading BASIC ROM, Monitor ROM, cartridge files, and K7 cassette files
+2. THE Menu_System SHALL provide menu options to reset the Emulator, pause and resume emulation, save and load emulator state with slot selection, capture screenshots, toggle FPS display, toggle the Debugger_UI, toggle fullscreen mode, and quit the application
+3. THE Config_Manager SHALL persist user preferences to an INI configuration file in the user's home directory or application data directory
+4. THE Config_Manager SHALL store and load video settings including scaling filter type, aspect ratio mode, and fullscreen state
+5. THE Config_Manager SHALL store and load audio settings including volume level, mute state, and audio buffer size
+6. THE Config_Manager SHALL store and load OSD settings including FPS counter position and FPS display enabled state
+7. THE Config_Manager SHALL store and load general settings including last used directories for each file type, auto-load last file preference, and a recent files list
+8. THE File_Browser SHALL provide an interactive file picker with directory navigation and file filtering by extension
+9. THE File_Browser SHALL integrate with the Config_Manager to remember the last directory used for each file type (cartridge, ROM, K7)
+10. THE File_Browser SHALL support browsing and selecting cartridge files, ROM files, and K7 cassette files
+11. THE OSD_Renderer SHALL display an FPS counter on the Framebuffer with configurable position (top-left, top-right, bottom-left, bottom-right)
+12. THE OSD_Renderer SHALL display timed notification messages on the Framebuffer that automatically disappear after a configurable duration
+13. THE OSD_Renderer SHALL display a status bar on the Framebuffer showing emulator state information
+14. THE OSD_Renderer SHALL support configurable opacity for all on-screen display elements
+15. THE Dialogs SHALL provide a MessageDialog component for displaying information messages to the user
+16. THE Dialogs SHALL provide a ConfirmDialog component for yes/no prompts requiring user confirmation
+17. THE Dialogs SHALL provide a ProgressDialog component for displaying progress during long-running operations
+18. THE Input_Mapper SHALL provide a UI for remapping keyboard keys to MO5 keyboard matrix positions
+19. THE Input_Mapper SHALL provide a UI for detecting and configuring joystick input devices
+20. THE Input_Mapper SHALL save and load input mapping configurations through the Config_Manager
+21. THE Save_State_Manager_UI SHALL provide a UI layer for managing multiple save state slots separate from the core Save_State_Framework
+22. THE Save_State_Manager_UI SHALL capture thumbnail images of the Framebuffer for each save state slot
+23. THE Save_State_Manager_UI SHALL store metadata for each save state including timestamp and slot number
+24. THE Save_State_Manager_UI SHALL provide UI to list all saved states and delete individual states
+25. THE Text_Renderer SHALL render bitmap font text for all UI components on the Framebuffer
+26. THE Recent_Files_List SHALL track recently loaded files and integrate with the Config_Manager for persistence
+27. THE Recent_Files_List SHALL provide a list of recently loaded files in the Menu_System for quick access
+28. THE ZIP_Handler SHALL detect and extract ROM files and cartridge files from ZIP archives
+29. THE ZIP_Handler SHALL support loading K7 cassette files from ZIP archives
+30. WHEN a user selects a file through the File_Browser, THE File_Browser SHALL return the absolute path to the selected file
+31. WHEN a configuration value is changed through any UI component, THE Config_Manager SHALL persist the change to the INI file
+32. FOR ALL valid configuration files, loading a configuration and saving it back SHALL produce an equivalent configuration (round-trip property)
+33. FOR ALL valid save state metadata, serializing metadata to storage and deserializing it back SHALL produce identical metadata values (round-trip property)

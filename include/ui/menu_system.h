@@ -31,7 +31,11 @@ public:
     void show();
     void hide();
     bool is_visible() const { return visible_; }
+    void open() { show(); }
+    void close() { hide(); }
+    bool is_open() const { return visible_; }
     crayon::MenuAction process_input(SDL_Keycode key);
+    crayon::MenuAction get_selected_action() const { return last_action_; }
     int get_selected_slot() const;
     void render();
     void build_main_menu();
@@ -40,7 +44,7 @@ public:
 private:
     void navigate_up();
     void navigate_down();
-    void select_current();
+    crayon::MenuAction select_current();
     void go_back();
 
     SDL_Renderer* renderer_;
@@ -50,6 +54,7 @@ private:
     std::stack<std::vector<MenuItem>*> menu_stack_;
     int selected_index_ = 0;
     int last_selected_slot_ = -1;
+    crayon::MenuAction last_action_ = crayon::MenuAction::None;
     bool visible_ = false;
 };
 
