@@ -30,14 +30,16 @@ uint8_t PIA::read_register(uint8_t reg) {
             return state_.cra | (state_.irqa1_flag ? 0x80 : 0) | (state_.irqa2_flag ? 0x40 : 0);
         case 2: // Port B data/direction
             if (state_.crb & 0x04) {
-                // MO5 Port B: keyboard matrix scanning
-                // The output latch selects which key to scan
-                // Input returns key state on bit 7
+                // MO5 Port B keyboard scanning:
+                // The output latch (bits 1-6) selects a key scancode.
+                // Bit 7 returns the key state: 0 = pressed, 1 = not pressed.
+                // Bit 0 is sound output (active low buzzer).
+                // We return the output latch with bit 7 set from keyboard.
+                uint8_t key_bit = 0x80;  // default: no key pressed
                 if (input_) {
-                    state_.input_pins_b = input_->read_keyboard_row(state_.output_latch_b);
+                    key_bit = input_->read_key_state(state_.output_latch_b);
                 }
-                uint8_t data = (state_.output_latch_b & state_.ddrb) |
-                               (state_.input_pins_b & ~state_.ddrb);
+                uint8_t data = (state_.output_latch_b & 0x7F) | key_bit;
                 state_.irqb1_flag = false;
                 state_.irqb2_flag = false;
                 return data;
@@ -55,8 +57,7 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
             if (state_.cra & 0x04) {
                 state_.output_latch_a = value;
                 state_.dra = (value & state_.ddra) | (state_.input_pins_a & ~state_.ddra);
-                // Bit 0: buzzer output / cassette write
-                if (audio_) audio_->set_buzzer_bit(value & 0x01);
+                // MO5 Port A bit 0: cassette write output
                 if (cassette_ && cassette_->is_recording()) {
                     cassette_->write_data_bit((value & 0x01) != 0);
                 }
@@ -67,8 +68,11 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
         case 1: state_.cra = value & 0x3F; break;
         case 2:
             if (state_.crb & 0x04) {
-                state_.output_latch_b = value;
-                state_.drb = (value & state_.ddrb) | (state_.input_pins_b & ~state_.ddrb);
+                // MO5 Port B write: bits 1-6 = key scancode, bit 0 = sound
+                state_.output_latch_b = value & 0x7F;
+                state_.drb = state_.output_latch_b;
+                // Bit 0 of Port B is the buzzer/sound output on MO5
+                if (audio_) audio_->set_buzzer_bit(value & 0x01);
             } else {
                 state_.ddrb = value;
             }

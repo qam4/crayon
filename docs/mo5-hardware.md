@@ -1,0 +1,343 @@
+# Thomson MO5 Hardware Reference
+
+Technical reference for the Thomson MO5 home computer (1984), as implemented in the
+Crayon emulator. Every claim cites a primary source.
+
+## Sources
+
+| Tag | Source | Description |
+|-----|--------|-------------|
+| **[MT]** | *Manuel Technique du MO5*, Michel Oury, Cedic/Nathan, 1985 | The official Thomson technical manual. Available as PDF at dcmoto.free.fr. |
+| **[PK]** | Pulkomandy, *Demomaker's guide to Thomson computers*, pulkomandy.tk | Detailed hardware wiki covering all Thomson models. |
+| **[AM]** | Antoine Miné, MESS/MAME Thomson driver, mine.perso.lip6.fr | MO5 driver documentation with keyboard layout and feature list. |
+| **[DC]** | Daniel Coulom, DCMOTO emulator, dcmoto.free.fr | The definitive reference emulator for all Thomson machines. |
+| **[KS]** | Sporniket, *KiCad conversions — Thomson MO5 v1*, GitHub (CC0) | Digitized MO5 circuit board schematics from the original PCB. |
+| **[TH]** | Zlika, *Theodore* libretro core, github.com/Zlika/theodore | Well-maintained open-source Thomson MO/TO emulator; cross-reference. |
+| **[WP]** | Wikipedia, *Thomson MO5* article | Aggregates several of the above sources; useful for the color palette table. |
+
+---
+
+## 1. System Overview
+
+- **CPU**: Motorola 6809E at 1 MHz [MT] [PK]
+- **RAM**: 48 KB total — 32 KB user RAM + 16 KB video RAM [MT]
+- **ROM**: 16 KB total — 12 KB Microsoft BASIC 1.0 + 4 KB Monitor [MT]
+- **Video**: 320×200 pixels, 16 fixed colors, 40×200 attribute grid [MT]
+- **Sound**: 1-bit buzzer on PIA Port B bit 0 [MT] [PK]
+- **Storage**: Cassette interface (K7 format), optional cartridge port [MT]
+- **Display**: PAL 50 Hz, 312 total scanlines (200 visible) [PK]
+- **Light pen**: Active-low button directly readable via gate array register [MT] [KS]
+
+---
+
+## 2. Memory Map
+
+Derived from the Monitor ROM disassembly and confirmed by [MT] and [PK].
+
+| Address Range | Size | Contents |
+|---------------|------|----------|
+| `$0000–$1FFF` | 8 KB | Video RAM window (page selected by gate array bit 0) |
+| `$2000–$9FFF` | 32 KB | User RAM |
+| `$A000–$A7BF` | — | I/O space (active but mostly unused on base MO5) |
+| `$A7C0` | 1 byte | Gate array system register (see §3) |
+| `$A7C1` | 1 byte | PIA register 2 — Port B data/DDR (keyboard scan) |
+| `$A7C2` | 1 byte | PIA register 1 — CRA (control register A) |
+| `$A7C3` | 1 byte | PIA register 3 — CRB (control register B) |
+| `$A800–$AFFF` | 2 KB | Extension area |
+| `$B000–$BFFF` | 4 KB | Cartridge ROM |
+| `$C000–$EFFF` | 12 KB | BASIC ROM (Microsoft BASIC 1.0) |
+| `$F000–$FFFF` | 4 KB | Monitor ROM |
+
+### PIA Address Mapping (MO5-specific)
+
+The MO5 swaps address lines A0/A1 compared to the standard 6821 PIA pinout [KS] [PK]:
+
+| MO5 Address | Standard 6821 Register | Function |
+|-------------|----------------------|----------|
+| `$A7C0` | — | Gate array (NOT a PIA register) |
+| `$A7C1` | Register 2 | Port B data / DDR B |
+| `$A7C2` | Register 1 | Control Register A |
+| `$A7C3` | Register 3 | Control Register B |
+
+Port A data (register 0) is at `$A7C0` on a standard 6821, but on the MO5 that address
+is occupied by the gate array. Port A is accessed indirectly through the gate array
+register. [KS] [PK]
+
+---
+
+## 3. Gate Array Register ($A7C0)
+
+The EFGJ03L gate array at `$A7C0` controls video page selection, border color, and
+provides read-only status bits. [MT] [PK]
+
+| Bit | R/W | Function |
+|-----|-----|----------|
+| 0 | R/W | Video page select: 0 = fond/color, 1 = forme/pixel |
+| 1–4 | R/W | Border color (4-bit index into the 16-color palette) |
+| 5 | R | Light pen button (directly from hardware, active low) |
+| 6 | R/W | Writable (purpose varies by model) |
+| 7 | R | Cassette data input (active low: 1 = no signal) |
+
+Write mask: `$5F` (bits 0–4 and 6 are writable; bits 5 and 7 are read-only). [MT]
+
+---
+
+## 4. Video System
+
+### Video RAM Layout
+
+The MO5 has 16 KB of video RAM organized as two 8 KB pages [MT]:
+
+- **Page 0 (fond/color)**: Each byte defines foreground (high nibble) and background
+  (low nibble) colors for one 8-pixel-wide column.
+- **Page 1 (forme/pixel)**: Each byte is a bitmap of 8 pixels (MSB = leftmost).
+
+The CPU sees one page at a time through the `$0000–$1FFF` window. The gate array
+register bit 0 selects which page is mapped. Both pages are always used for rendering.
+
+### Display Geometry
+
+- Resolution: 320 × 200 pixels [MT]
+- Attribute grid: 40 columns × 200 rows (one color byte per 8-pixel block per row)
+- Total scanlines: 312 (PAL) [PK]
+- Visible scanlines: 200
+- CPU cycles per scanline: 64 (at 1 MHz) [PK]
+- CPU cycles per frame: 20,000 (1 MHz / 50 Hz)
+
+### Rendering
+
+For each of the 8000 (40 × 200) character cells:
+1. Read the forme byte → 8 pixel bits
+2. Read the fond byte → foreground color (bits 7–4), background color (bits 3–0)
+3. For each pixel: if bit is 1, use foreground color; if 0, use background color
+
+---
+
+## 5. Color Palette
+
+The MO5 has a fixed 16-color palette generated by the EFGJ03L gate array. Colors are
+not programmable. [MT] [WP]
+
+| Index | Color | R | G | B | RGBA (hex) |
+|-------|-------|---|---|---|------------|
+| 0 | Black | 0 | 0 | 0 | `$000000` |
+| 1 | Red | 255 | 0 | 0 | `$FF0000` |
+| 2 | Green | 0 | 255 | 0 | `$00FF00` |
+| 3 | Yellow | 255 | 255 | 0 | `$FFFF00` |
+| 4 | Blue | 0 | 0 | 255 | `$0000FF` |
+| 5 | Magenta | 255 | 0 | 255 | `$FF00FF` |
+| 6 | Cyan | 0 | 255 | 255 | `$00FFFF` |
+| 7 | White | 255 | 255 | 255 | `$FFFFFF` |
+| 8 | Grey | 128 | 128 | 128 | `$808080` |
+| 9 | Pink | 255 | 128 | 128 | `$FF8080` |
+| 10 | Light green | 128 | 255 | 128 | `$80FF80` |
+| 11 | Light yellow | 255 | 255 | 128 | `$FFFF80` |
+| 12 | Light blue | 128 | 128 | 255 | `$8080FF` |
+| 13 | Light magenta | 255 | 128 | 255 | `$FF80FF` |
+| 14 | Light cyan | 128 | 255 | 255 | `$80FFFF` |
+| 15 | Orange | 255 | 128 | 0 | `$FF8000` |
+
+The boot screen default fond value `$46` means foreground = blue (4), background =
+cyan (6). This is correct MO5 behavior — the Monitor ROM intentionally fills video RAM
+with this value. [MT] [DC]
+
+---
+
+## 6. Keyboard
+
+### Protocol
+
+The MO5 does NOT use a matrix scan. It uses a direct key-number lookup protocol [MT] [PK]:
+
+1. The ROM writes a key scancode (0–57) into PIA Port B bits 1–6.
+2. The ROM reads back PIA Port B bit 7 to check if that key is pressed.
+3. Bit 7 = 0 means the key IS pressed; bit 7 = 1 means it is NOT pressed.
+
+This is fundamentally different from the TO7/TO8 matrix keyboard. The MO5 has a
+rubber-membrane keyboard with 58 keys, each assigned a unique scancode. [AM]
+
+### Scancode Table
+
+Scancodes verified against Theodore's `libretroKeyCodeToThomsonMo5ScanCode` table [TH],
+which matches the layout documented in [MT] and [AM].
+
+| Scancode | Key | Scancode | Key | Scancode | Key |
+|----------|-----|----------|-----|----------|-----|
+| `$00` | N | `$01` | EFF (Delete) | `$02` | J |
+| `$03` | H | `$04` | U | `$05` | Y |
+| `$06` | 7 | `$07` | 6 | `$08` | , (M on Thomson) |
+| `$09` | INS | `$0A` | K | `$0B` | G |
+| `$0C` | I | `$0D` | T | `$0E` | 8 | 
+| `$0F` | 5 | `$10` | . (comma on Thomson) | `$11` | RAZ (Home) |
+| `$12` | L | `$13` | F | `$14` | O |
+| `$15` | R | `$16` | 9 | `$17` | 4 |
+| `$18` | @ | `$19` | → (Right) | `$1A` | / (M on Thomson) |
+| `$1B` | D | `$1C` | P | `$1D` | E |
+| `$1E` | 0 | `$1F` | 3 | `$20` | SPACE |
+| `$21` | ↓ (Down) | `$22` | B | `$23` | S |
+| `$24` | * | `$25` | W | `$26` | - |
+| `$27` | 2 | `$28` | X | `$29` | ← (Left) |
+| `$2A` | V | `$2B` | A | `$2C` | ACC (Accent) |
+| `$2D` | Q | `$2E` | + | `$2F` | 1 |
+| `$30` | Z | `$31` | ↑ (Up) | `$32` | C |
+| `$33` | . (dot) | `$34` | ENTER | `$35` | CNT (Ctrl) |
+| `$36` | ACC | `$37` | STOP | `$38` | SHIFT |
+| `$39` | BASIC | | | | |
+
+Note: The Thomson MO5 uses AZERTY layout. The scancodes above are the hardware
+scancodes, not the characters they produce (which depend on SHIFT/BASIC state). [MT]
+
+### Common Bug: Wrong Scancodes
+
+If ENTER produces "V" on screen, the scancode table is wrong. ENTER is `$34`, V is
+`$2A`. Confusing these two is a common implementation error. Always verify against the
+table above. [TH] [DC]
+
+---
+
+## 7. PIA (6821) — Peripheral Interface Adapter
+
+The MO5 uses a single MC6821 PIA for keyboard, cassette, sound, and interrupt
+handling. [MT] [KS]
+
+### Port A (accent on cassette I/O)
+
+| Bit | Direction | Function |
+|-----|-----------|----------|
+| 0 | Output | Cassette data write |
+| 7 | Input | Cassette data read (active low) |
+| 1–6 | — | Various (accent key state, etc.) |
+
+CRA (Control Register A) at `$A7C2`:
+- Bit 0: IRQA1 enable (CA1 interrupt — light pen strobe)
+- Bit 1: CA1 edge select
+- Bit 2: Port A data/DDR select (1 = data, 0 = DDR)
+- Bits 3–5: CA2 control
+- Bit 6: IRQA2 flag (read-only)
+- Bit 7: IRQA1 flag (read-only)
+
+### Port B (keyboard + sound)
+
+| Bit | Direction | Function |
+|-----|-----------|----------|
+| 0 | Output | Buzzer / sound output (active low) [MT] [PK] |
+| 1–6 | Output | Key scancode (written by ROM for keyboard scan) |
+| 7 | Input | Key state: 0 = pressed, 1 = not pressed |
+
+CRB (Control Register B) at `$A7C3`:
+- Bit 0: IRQB1 enable (CB1 interrupt — VSYNC)
+- Bit 1: CB1 edge select
+- Bit 2: Port B data/DDR select (1 = data, 0 = DDR)
+- Bits 3–5: CB2 control
+- Bit 6: IRQB2 flag (read-only)
+- Bit 7: IRQB1 flag (read-only)
+
+### Interrupts
+
+- **FIRQ**: Triggered by VSYNC via CB1 (PIA Port B). The gate array asserts CB1 at the
+  start of vertical blanking (50 Hz). The FIRQ handler should read Port B data to
+  acknowledge the interrupt (clears IRQB1 flag). [MT] [PK]
+- **IRQ**: Triggered by light pen strobe via CA1 (PIA Port A). [MT]
+
+Note: During early boot, the MO5 ROM's default FIRQ handler is just RTI (no Port B
+read), so the IRQB1 flag would never clear on real hardware. The emulator auto-clears
+the flag after the CPU takes the FIRQ to prevent an infinite FIRQ loop. [DC]
+
+---
+
+## 8. Sound
+
+The MO5 has a simple 1-bit buzzer connected to PIA Port B bit 0. [MT] [PK]
+
+- Toggle bit 0 of Port B to produce square waves.
+- No hardware volume control — amplitude is fixed.
+- Software controls frequency by timing the bit toggles.
+- The buzzer is active low on the original hardware. [KS]
+
+There is no dedicated sound chip. All MO5 music and sound effects are produced by
+rapid toggling of this single bit. [MT]
+
+---
+
+## 9. Cassette Interface (K7 Format)
+
+The MO5 uses a cassette interface for program storage. Almost all MO5 software was
+distributed on cassette tapes (the MO5 did not have a practical cartridge ecosystem
+like the TO7). [AM]
+
+### Hardware
+
+- Data output: PIA Port A bit 0 [MT]
+- Data input: Gate array register bit 7 (active low) [MT]
+- Baud rate: 1200 baud (standard Thomson K7 format) [DC]
+
+### K7 File Format
+
+The `.k7` file format is a raw dump of the cassette data stream. It contains the
+modulated data as it would appear on tape, including leader tones, sync bytes, and
+data blocks. [DC]
+
+The ROM's cassette routines handle:
+- Leader tone detection (synchronization)
+- Byte framing (start/stop bits)
+- Block headers and checksums
+- BASIC program loading via `LOAD""` or `RUN""`
+
+---
+
+## 10. Timing
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| CPU clock | 1 MHz (1,000,000 Hz) | [MT] |
+| Frame rate | 50 Hz (PAL) | [PK] |
+| Cycles per frame | 20,000 | Derived: 1 MHz / 50 Hz |
+| Total scanlines | 312 (PAL) | [PK] |
+| Visible scanlines | 200 | [MT] |
+| Cycles per scanline | 64 | Derived: 20,000 / 312 ≈ 64 |
+
+The 6809E is clocked by the gate array, which derives the CPU clock from the video
+timing. The CPU runs at exactly 1 MHz. [MT] [PK]
+
+---
+
+## 11. Boot Sequence
+
+On power-up or reset [MT] [DC]:
+
+1. CPU reads reset vector from `$FFFE–$FFFF` (in Monitor ROM)
+2. Monitor ROM initializes PIA registers
+3. Monitor ROM fills video RAM: forme page with `$00`, fond page with `$46` (blue on cyan)
+4. Monitor ROM displays "BASIC 1.0" banner
+5. Control transfers to BASIC ROM at `$C000`
+6. BASIC displays the `>` prompt and enters the command loop
+
+The fond value `$46` (foreground = blue, background = cyan) is the standard MO5 boot
+color scheme. This is intentional, not a bug. [MT] [DC]
+
+---
+
+## 12. Differences from TO7/TO8
+
+The MO5 is often confused with the TO7 and TO8, but there are significant hardware
+differences [PK] [AM]:
+
+| Feature | MO5 | TO7/TO8 |
+|---------|-----|---------|
+| Keyboard | Direct scancode lookup (58 keys) | Matrix scan (8×8 or larger) |
+| Video RAM | 2 pages × 8 KB at `$0000` | Different mapping |
+| PIA address | `$A7C0–$A7C3` (swapped A0/A1) | Standard 6821 mapping |
+| Sound | 1-bit buzzer (PIA Port B bit 0) | Same or enhanced |
+| Gate array | EFGJ03L at `$A7C0` | Different gate array |
+| Palette | Fixed 16 colors | Programmable on TO8 |
+| Primary storage | Cassette (K7) | Cassette + floppy |
+
+---
+
+## Further Reading
+
+- DCMOTO emulator and documentation: http://dcmoto.free.fr/
+- Pulkomandy's Thomson wiki: http://pulkomandy.tk/wiki/doku.php?id=thomson
+- MAME Thomson driver source: https://github.com/mamedev/mame/blob/master/src/mame/thomson/
+- Theodore source code: https://github.com/Zlika/theodore
+- KiCad MO5 schematics: https://github.com/sporniket/kicad-conversions--thomson-mo5--v1

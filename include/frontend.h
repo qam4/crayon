@@ -21,12 +21,13 @@ struct FrontendConfig {
     bool audio_enabled = true;
 
     bool show_fps = true;
-    bool enable_debugger = true;
+    bool enable_debugger = false;
     std::string trace_level;
 
     std::string basic_rom_path;
     std::string monitor_rom_path;
     std::string cartridge_path;
+    std::string cassette_path;
     std::string save_state_path;
     std::string screenshot_path = "screenshots";
 };

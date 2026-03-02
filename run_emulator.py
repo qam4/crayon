@@ -65,6 +65,8 @@ def run_sdl_mode(exe_path, args, extra_args):
         cmd.extend(["--frames", str(args.frames)])
     if args.cartridge:
         cmd.extend(["--cartridge", args.cartridge])
+    if args.cassette:
+        cmd.extend(["--cassette", args.cassette])
     cmd.extend(extra_args)
 
     print("Command:", " ".join(cmd))
@@ -86,6 +88,8 @@ def run_headless_mode(exe_path, args, extra_args):
     cmd.extend(["--frames", str(frames)])
     if args.cartridge:
         cmd.extend(["--cartridge", args.cartridge])
+    if args.cassette:
+        cmd.extend(["--cassette", args.cassette])
 
     # Auto-screenshot at end of run
     screenshot_path = args.screenshot or f"screenshots/frame_{frames}.png"
@@ -112,7 +116,7 @@ Examples:
   %(prog)s sdl                      # SDL mode
   %(prog)s headless                 # Headless mode, 200 frames, auto-screenshot
   %(prog)s headless --frames 500    # Headless mode, 500 frames
-  %(prog)s sdl --cartridge roms/game.k7   # Load a K7 cassette
+  %(prog)s sdl --cassette "roms/Yeti (1984) (Loriciels).k7"  # Load a K7 cassette
         """
     )
 
@@ -145,9 +149,15 @@ Examples:
     )
 
     parser.add_argument(
+        "--cassette",
+        default=None,
+        help="Path to K7 cassette file"
+    )
+
+    parser.add_argument(
         "--cartridge",
         default=None,
-        help="Path to cartridge or K7 cassette file"
+        help="Path to cartridge ROM file"
     )
 
     parser.add_argument(

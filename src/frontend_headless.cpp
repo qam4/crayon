@@ -29,6 +29,12 @@ bool HeadlessFrontend::initialize(const FrontendConfig& config) {
         auto result = emulator_->load_cartridge(config.cartridge_path);
         if (result.is_err()) { std::cerr << "Failed to load cartridge: " << result.error << "\n"; return false; }
     }
+    if (!config.cassette_path.empty()) {
+        auto result = emulator_->get_cassette().load_k7(config.cassette_path);
+        if (result.is_err()) { std::cerr << "Failed to load K7: " << result.error << "\n"; return false; }
+        emulator_->get_cassette().play();
+        std::cout << "Cassette loaded: " << config.cassette_path << "\n";
+    }
 
     if (config.enable_debugger) {
         debugger_ = std::make_unique<Debugger>(emulator_.get());

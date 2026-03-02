@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <filesystem>
 
 #ifdef ENABLE_SDL
 #include "frontend_sdl.h"
@@ -14,7 +15,8 @@ void print_usage(const char* program) {
               << "Options:\n"
               << "  --basic <path>     Path to BASIC ROM (12KB)\n"
               << "  --monitor <path>   Path to Monitor ROM (4KB)\n"
-              << "  --cartridge <path> Path to cartridge/K7 file\n"
+              << "  --cartridge <path> Path to cartridge ROM\n"
+              << "  --cassette <path>  Path to K7 cassette file\n"
               << "  --headless         Run without display\n"
               << "  --frames <n>       Run for N frames then exit\n"
               << "  --screenshot <path> Save PNG screenshot after run (headless)\n"
@@ -23,6 +25,10 @@ void print_usage(const char* program) {
 }
 
 int main(int argc, char* argv[]) {
+    // Ensure output directories exist
+    std::filesystem::create_directories("userdata");
+    std::filesystem::create_directories("screenshots");
+
     crayon::FrontendConfig config;
     bool headless = false;
     int frame_limit = 0;
@@ -34,6 +40,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--basic" && i + 1 < argc) config.basic_rom_path = argv[++i];
         else if (arg == "--monitor" && i + 1 < argc) config.monitor_rom_path = argv[++i];
         else if (arg == "--cartridge" && i + 1 < argc) config.cartridge_path = argv[++i];
+        else if (arg == "--cassette" && i + 1 < argc) config.cassette_path = argv[++i];
         else if (arg == "--headless") headless = true;
         else if (arg == "--frames" && i + 1 < argc) frame_limit = std::stoi(argv[++i]);
         else if (arg == "--scale" && i + 1 < argc) config.display_scale = std::stoi(argv[++i]);

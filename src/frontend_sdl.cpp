@@ -27,6 +27,12 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
     if (!config.basic_rom_path.empty()) emulator_->load_basic_rom(config.basic_rom_path);
     if (!config.monitor_rom_path.empty()) emulator_->load_monitor_rom(config.monitor_rom_path);
     if (!config.cartridge_path.empty()) emulator_->load_cartridge(config.cartridge_path);
+    if (!config.cassette_path.empty()) {
+        auto result = emulator_->get_cassette().load_k7(config.cassette_path);
+        if (result.is_err()) { std::cerr << "Failed to load K7: " << result.error << "\n"; return false; }
+        emulator_->get_cassette().play();
+        std::cout << "Cassette loaded: " << config.cassette_path << "\n";
+    }
 
     if (config.enable_debugger) {
         debugger_ = std::make_unique<Debugger>(emulator_.get());
@@ -124,12 +130,17 @@ bool SDLFrontend::init_video() {
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         DISPLAY_WIDTH * scale, DISPLAY_HEIGHT * scale,
         SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-    if (!window_) return false;
+    if (!window_) { std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << "\n"; return false; }
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!renderer_) return false;
+    if (!renderer_) {
+        std::cerr << "Accelerated renderer unavailable, trying software: " << SDL_GetError() << "\n";
+        renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);
+    }
+    if (!renderer_) { std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << "\n"; return false; }
     texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888,
         SDL_TEXTUREACCESS_STREAMING, DISPLAY_WIDTH, DISPLAY_HEIGHT);
-    return texture_ != nullptr;
+    if (!texture_) { std::cerr << "SDL_CreateTexture failed: " << SDL_GetError() << "\n"; return false; }
+    return true;
 }
 
 bool SDLFrontend::init_audio() {
@@ -141,8 +152,12 @@ bool SDLFrontend::init_audio() {
     desired.callback = audio_callback;
     desired.userdata = this;
     audio_device_ = SDL_OpenAudioDevice(nullptr, 0, &desired, nullptr, 0);
-    if (audio_device_ > 0) SDL_PauseAudioDevice(audio_device_, 0);
-    return audio_device_ > 0;
+    if (audio_device_ > 0) {
+        SDL_PauseAudioDevice(audio_device_, 0);
+    } else {
+        std::cerr << "Warning: Could not open audio device: " << SDL_GetError() << "\n";
+    }
+    return true;  // Audio failure is not fatal
 }
 
 void SDLFrontend::cleanup_video() {
@@ -169,8 +184,90 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
         else imgui_debugger_ui_->show();
         return;
     }
-    // Forward to input handler
-    emulator_->get_input_handler().process_host_key(event.keysym.sym, pressed);
+    // Translate SDL2 scancode to MO5 key.
+    // Mapping strategy: character-based. Press M on PC → get M on MO5.
+    // The MO5 ROM's internal character table handles the rest.
+    // Letters use AZERTY↔QWERTY swap (A↔Q, Z↔W) since the MO5 is AZERTY.
+    // Punctuation maps by closest character match.
+    MO5Key mo5_key;
+    switch (event.keysym.scancode) {
+        // Top letter row: QWERTY Q-W-E-R-T-Y -> MO5 A-Z-E-R-T-Y
+        case SDL_SCANCODE_Q: mo5_key = MO5Key::A; break;
+        case SDL_SCANCODE_W: mo5_key = MO5Key::Z; break;
+        case SDL_SCANCODE_E: mo5_key = MO5Key::E; break;
+        case SDL_SCANCODE_R: mo5_key = MO5Key::R; break;
+        case SDL_SCANCODE_T: mo5_key = MO5Key::T; break;
+        case SDL_SCANCODE_Y: mo5_key = MO5Key::Y; break;
+        case SDL_SCANCODE_U: mo5_key = MO5Key::U; break;
+        case SDL_SCANCODE_I: mo5_key = MO5Key::I; break;
+        case SDL_SCANCODE_O: mo5_key = MO5Key::O; break;
+        case SDL_SCANCODE_P: mo5_key = MO5Key::P; break;
+        // Home row: QWERTY A-S-D-F-G-H-J-K-L -> MO5 Q-S-D-F-G-H-J-K-L
+        case SDL_SCANCODE_A: mo5_key = MO5Key::Q; break;
+        case SDL_SCANCODE_S: mo5_key = MO5Key::S; break;
+        case SDL_SCANCODE_D: mo5_key = MO5Key::D; break;
+        case SDL_SCANCODE_F: mo5_key = MO5Key::F; break;
+        case SDL_SCANCODE_G: mo5_key = MO5Key::G; break;
+        case SDL_SCANCODE_H: mo5_key = MO5Key::H; break;
+        case SDL_SCANCODE_J: mo5_key = MO5Key::J; break;
+        case SDL_SCANCODE_K: mo5_key = MO5Key::K; break;
+        case SDL_SCANCODE_L: mo5_key = MO5Key::L; break;
+        // Bottom row: QWERTY Z-X-C-V-B-N -> MO5 W-X-C-V-B-N
+        case SDL_SCANCODE_Z: mo5_key = MO5Key::W; break;
+        case SDL_SCANCODE_X: mo5_key = MO5Key::X; break;
+        case SDL_SCANCODE_C: mo5_key = MO5Key::C; break;
+        case SDL_SCANCODE_V: mo5_key = MO5Key::V; break;
+        case SDL_SCANCODE_B: mo5_key = MO5Key::B; break;
+        case SDL_SCANCODE_N: mo5_key = MO5Key::N; break;
+        case SDL_SCANCODE_M: mo5_key = MO5Key::SLASH; break;         // MO5 scancode 0x1A produces 'M'
+        // Punctuation — mapped by character, not physical position.
+        // MO5Key names are confusing: they're named after AZERTY labels,
+        // not the characters they produce. Comments show the actual output.
+        case SDL_SCANCODE_COMMA:  mo5_key = MO5Key::M; break;        // MO5 scancode 0x08 produces ','
+        case SDL_SCANCODE_PERIOD: mo5_key = MO5Key::COMMA; break;    // MO5 scancode 0x10 produces '.'
+        case SDL_SCANCODE_SEMICOLON: mo5_key = MO5Key::PLUS; break;  // MO5 scancode 0x2E produces ';' (via SHIFT)
+        case SDL_SCANCODE_SLASH:  mo5_key = MO5Key::SLASH; break;    // MO5 scancode 0x1A: SHIFT produces '/'
+        case SDL_SCANCODE_LEFTBRACKET: mo5_key = MO5Key::STAR; break; // MO5 scancode 0x24 produces '*'
+        case SDL_SCANCODE_RIGHTBRACKET: mo5_key = MO5Key::AT; break;  // MO5 scancode 0x18 produces '@'
+        // Digit row
+        case SDL_SCANCODE_0: mo5_key = MO5Key::Key0; break;
+        case SDL_SCANCODE_1: mo5_key = MO5Key::Key1; break;
+        case SDL_SCANCODE_2: mo5_key = MO5Key::Key2; break;
+        case SDL_SCANCODE_3: mo5_key = MO5Key::Key3; break;
+        case SDL_SCANCODE_4: mo5_key = MO5Key::Key4; break;
+        case SDL_SCANCODE_5: mo5_key = MO5Key::Key5; break;
+        case SDL_SCANCODE_6: mo5_key = MO5Key::Key6; break;
+        case SDL_SCANCODE_7: mo5_key = MO5Key::Key7; break;
+        case SDL_SCANCODE_8: mo5_key = MO5Key::Key8; break;
+        case SDL_SCANCODE_9: mo5_key = MO5Key::Key9; break;
+        // Special keys
+        case SDL_SCANCODE_SPACE:     mo5_key = MO5Key::SPACE; break;
+        case SDL_SCANCODE_RETURN:    mo5_key = MO5Key::ENTER; break;
+        case SDL_SCANCODE_BACKSPACE: mo5_key = MO5Key::ACC2; break;
+        case SDL_SCANCODE_DELETE:    mo5_key = MO5Key::EFF; break;
+        case SDL_SCANCODE_GRAVE:     mo5_key = MO5Key::ACC; break;    // MO5 ACC (accent) key — ` is accent on PC
+        case SDL_SCANCODE_TAB:       mo5_key = MO5Key::STOP; break;
+        case SDL_SCANCODE_MINUS:     mo5_key = MO5Key::MINUS; break;
+        case SDL_SCANCODE_EQUALS:    mo5_key = MO5Key::PLUS; break;
+        case SDL_SCANCODE_APOSTROPHE: mo5_key = MO5Key::Key2; break;  // SHIFT = "
+        // Arrows
+        case SDL_SCANCODE_UP:    mo5_key = MO5Key::UP; break;
+        case SDL_SCANCODE_DOWN:  mo5_key = MO5Key::DOWN; break;
+        case SDL_SCANCODE_RIGHT: mo5_key = MO5Key::RIGHT; break;
+        case SDL_SCANCODE_LEFT:  mo5_key = MO5Key::LEFT; break;
+        // Navigation
+        case SDL_SCANCODE_INSERT: mo5_key = MO5Key::INS; break;
+        case SDL_SCANCODE_HOME:   mo5_key = MO5Key::RAZ; break;
+        // Modifiers
+        case SDL_SCANCODE_LSHIFT: mo5_key = MO5Key::SHIFT; break;
+        case SDL_SCANCODE_RSHIFT: mo5_key = MO5Key::BASIC; break;
+        case SDL_SCANCODE_LCTRL:  mo5_key = MO5Key::CNT; break;
+        case SDL_SCANCODE_RCTRL:  mo5_key = MO5Key::CNT; break;
+        case SDL_SCANCODE_LALT:   mo5_key = MO5Key::DOT; break;
+        case SDL_SCANCODE_RALT:   mo5_key = MO5Key::DOT; break;
+        default: return; // Unmapped key
+    }
+    emulator_->get_input_handler().set_key_state(mo5_key, pressed);
 }
 
 void SDLFrontend::handle_menu_action(MenuAction action) {
@@ -185,6 +282,10 @@ void SDLFrontend::handle_menu_action(MenuAction action) {
 
 void SDLFrontend::audio_callback(void* userdata, uint8_t* stream, int len) {
     auto* self = static_cast<SDLFrontend*>(userdata);
+    if (!self->emulator_) {
+        memset(stream, 0, len);
+        return;
+    }
     int samples = len / sizeof(int16_t);
     self->emulator_->get_audio_buffer(reinterpret_cast<int16*>(stream), samples);
 }

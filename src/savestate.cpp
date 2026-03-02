@@ -149,16 +149,14 @@ AudioState read_audio(BinaryReader& r) {
 }
 
 void write_input(BinaryWriter& w, const InputState& s) {
-    for (int r = 0; r < 8; ++r)
-        for (int c = 0; c < 8; ++c)
-            w.write_bool(s.keyboard_matrix[r][c]);
+    for (int i = 0; i < MO5_KEY_COUNT; ++i)
+        w.write_bool(s.keys[i]);
 }
 
 InputState read_input(BinaryReader& r) {
     InputState s;
-    for (int row = 0; row < 8; ++row)
-        for (int col = 0; col < 8; ++col)
-            s.keyboard_matrix[row][col] = r.read_bool();
+    for (int i = 0; i < MO5_KEY_COUNT; ++i)
+        s.keys[i] = r.read_bool();
     return s;
 }
 
