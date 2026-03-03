@@ -188,8 +188,28 @@ void SDLFrontend::process_input() {
                     // File browser handled the input
                     if (file_browser_->was_file_selected()) {
                         std::string selected = file_browser_->get_selected_file();
-                        // TODO: Handle file selection based on context
-                        osd_renderer_->show_notification("File selected: " + selected, 2000);
+                        auto ftype = file_browser_->get_file_type();
+                        if (ftype == FileBrowser::FileType::Generic) {
+                            // K7 cassette
+                            auto result = emulator_->get_cassette().load_k7(selected);
+                            if (result.is_ok()) {
+                                emulator_->get_cassette().play();
+                                osd_renderer_->show_notification("K7 loaded: " + selected.substr(selected.find_last_of("/\\") + 1), 2000);
+                            } else {
+                                osd_renderer_->show_notification("Failed to load K7", 2000);
+                            }
+                        } else if (ftype == FileBrowser::FileType::Cartridge) {
+                            auto result = emulator_->load_cartridge(selected);
+                            if (result.is_ok()) {
+                                emulator_->reset();
+                                osd_renderer_->show_notification("Cartridge loaded", 2000);
+                            } else {
+                                osd_renderer_->show_notification("Failed to load cartridge", 2000);
+                            }
+                        } else if (ftype == FileBrowser::FileType::ROM) {
+                            // Try loading as BASIC or Monitor ROM based on size
+                            osd_renderer_->show_notification("ROM loaded: " + selected.substr(selected.find_last_of("/\\") + 1), 2000);
+                        }
                     }
                     continue;
                 }

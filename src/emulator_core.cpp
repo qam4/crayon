@@ -9,6 +9,7 @@ EmulatorCore::EmulatorCore(const Configuration& config) : config_(config) {
     cpu_.set_memory_system(&memory_);
     memory_.set_pia(&pia_);
     memory_.set_gate_array(&gate_array_);
+    memory_.set_cassette(&cassette_);
     pia_.set_input_handler(&input_);
     pia_.set_cassette(&cassette_);
     pia_.set_light_pen(&light_pen_);
@@ -53,6 +54,7 @@ void EmulatorCore::run_frame() {
         for (uint8_t i = 0; i < cycles; ++i)
             master_clock_.tick();
 
+        cassette_.update_cycle(master_clock_.get_cycle_count());
         handle_interrupts();
     }
 

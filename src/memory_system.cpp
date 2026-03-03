@@ -1,6 +1,7 @@
 #include "memory_system.h"
 #include "pia.h"
 #include "gate_array.h"
+#include "cassette_interface.h"
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -69,12 +70,19 @@ uint8_t MemorySystem::read(uint16_t address) {
         // I/O space: 0xA000-0xA7FF
         if (address == 0xA7C0) {
             // Gate array system register — NOT a PIA register on MO5
-            // Bit 7: always 1 (active-low cassette input)
-            // Bit 6: not used
+            // Bit 7: cassette data input (active low: 0 = signal, 1 = no signal)
             // Bit 5: lightpen button (directly from hardware)
             // Bits 1-4: border color
             // Bit 0: video page select
-            return state_.gate_array_reg | 0x80;
+            uint8_t val = state_.gate_array_reg;
+            // Cassette data on bit 7: active low (invert the data bit)
+            if (cassette_ && cassette_->is_playing()) {
+                bool bit = cassette_->read_data_bit();
+                val = (val & 0x7F) | (bit ? 0x00 : 0x80);
+            } else {
+                val |= 0x80;  // No cassette signal
+            }
+            return val;
         }
         if (pia_ && address >= 0xA7C1 && address <= 0xA7C3) {
             // MO5 PIA register mapping (address lines swapped vs standard 6821):
@@ -124,7 +132,7 @@ void MemorySystem::write(uint16_t address, uint8_t value) {
     if (address < 0xA800) {
         if (address == 0xA7C0) {
             // Gate array system register — direct write (masked to 0x5F)
-            // Bit 0: video page select (0=pixel/forme, 1=color/fond)
+            // Bit 0: video page select (0=fond/color, 1=forme/pixel)
             // Bits 1-4: border color
             // Bit 5: read-only (lightpen)
             // Bit 6: writable
@@ -154,6 +162,7 @@ uint8_t MemorySystem::get_video_page() const { return state_.video_page; }
 
 void MemorySystem::set_pia(PIA* pia) { pia_ = pia; }
 void MemorySystem::set_gate_array(GateArray* ga) { gate_array_ = ga; }
+void MemorySystem::set_cassette(CassetteInterface* cass) { cassette_ = cass; }
 
 void MemorySystem::insert_cartridge() { state_.cartridge_inserted = true; }
 void MemorySystem::remove_cartridge() { state_.cartridge_inserted = false; }

@@ -15,6 +15,8 @@ struct CassetteState {
     bool playing = false;
     bool recording = false;
     std::vector<uint8_t> record_buffer;
+    uint64_t play_start_cycle = 0;   // CPU cycle when play() was called
+    uint64_t current_cycle = 0;      // Updated each frame by emulator
 };
 
 class CassetteInterface {
@@ -32,6 +34,7 @@ public:
 
     bool read_data_bit();
     void write_data_bit(bool bit);
+    void update_cycle(uint64_t cycle);  // Call each instruction to track timing
 
     bool is_playing() const;
     bool is_recording() const;

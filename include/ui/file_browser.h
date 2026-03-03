@@ -29,6 +29,7 @@ public:
     void render();
     std::string get_selected_file() const { return selected_file_; }
     bool was_file_selected() const { return file_selected_; }
+    FileType get_file_type() const { return current_file_type_; }
 
 private:
     void scan_directory();

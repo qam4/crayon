@@ -10,6 +10,7 @@ namespace crayon {
 
 class PIA;
 class GateArray;
+class CassetteInterface;
 
 struct MO5MemoryState {
     // MO5 video RAM: two 8KB pages
@@ -53,6 +54,7 @@ public:
 
     void set_pia(PIA* pia);
     void set_gate_array(GateArray* ga);
+    void set_cassette(CassetteInterface* cass);
 
     void insert_cartridge();
     void remove_cartridge();
@@ -65,6 +67,7 @@ private:
     MO5MemoryState state_;
     PIA* pia_ = nullptr;
     GateArray* gate_array_ = nullptr;
+    CassetteInterface* cassette_ = nullptr;
 };
 
 } // namespace crayon

@@ -25,19 +25,45 @@ Result<void> CassetteInterface::save_k7(const std::string& path) {
     return Result<void>::ok();
 }
 
-void CassetteInterface::play() { state_.playing = true; state_.recording = false; }
+void CassetteInterface::play() {
+    state_.playing = true;
+    state_.recording = false;
+    state_.play_start_cycle = state_.current_cycle;
+}
+
 void CassetteInterface::stop() { state_.playing = false; state_.recording = false; }
-void CassetteInterface::rewind() { state_.read_position = 0; state_.bit_position = 0; }
+void CassetteInterface::rewind() {
+    state_.read_position = 0;
+    state_.bit_position = 0;
+    state_.play_start_cycle = state_.current_cycle;
+}
+
+void CassetteInterface::update_cycle(uint64_t cycle) {
+    state_.current_cycle = cycle;
+}
 
 bool CassetteInterface::read_data_bit() {
-    if (!state_.playing || state_.read_position >= state_.k7_data.size()) return false;
-    bool bit = (state_.k7_data[state_.read_position] >> (7 - state_.bit_position)) & 1;
-    state_.bit_position++;
-    if (state_.bit_position >= 8) {
-        state_.bit_position = 0;
-        state_.read_position++;
+    if (!state_.playing || state_.k7_data.empty()) return false;
+
+    // K7 format: 1200 baud = 833.33 CPU cycles per bit at 1 MHz
+    // Calculate which bit we should be presenting based on elapsed cycles
+    static constexpr double CYCLES_PER_BIT = 1000000.0 / 1200.0;  // ~833.33
+
+    uint64_t elapsed = state_.current_cycle - state_.play_start_cycle;
+    size_t total_bit = static_cast<size_t>(elapsed / CYCLES_PER_BIT);
+    size_t byte_pos = total_bit / 8;
+    uint8_t bit_pos = total_bit % 8;
+
+    if (byte_pos >= state_.k7_data.size()) {
+        state_.playing = false;
+        return false;
     }
-    return bit;
+
+    // Track position for save state
+    state_.read_position = byte_pos;
+    state_.bit_position = bit_pos;
+
+    return (state_.k7_data[byte_pos] >> (7 - bit_pos)) & 1;
 }
 
 void CassetteInterface::write_data_bit(bool bit) {
