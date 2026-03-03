@@ -41,7 +41,7 @@ public:
 
     void signal_vsync();
     void signal_lightpen();
-    void acknowledge_firq();  // Clear vsync flag after CPU takes FIRQ
+    void acknowledge_vsync();  // Safety: clear vsync flag if handler didn't
 
     PIAState get_state() const;
     void set_state(const PIAState& state);

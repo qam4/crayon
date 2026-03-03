@@ -1,6 +1,8 @@
 #include "frontend_headless.h"
-#include <iostream>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -50,10 +52,42 @@ bool HeadlessFrontend::initialize(const FrontendConfig& config) {
 void HeadlessFrontend::shutdown() { running_ = false; }
 
 void HeadlessFrontend::run() {
+    std::ofstream trace_out;
+    if (!trace_path_.empty()) {
+        std::filesystem::create_directories(
+            std::filesystem::path(trace_path_).parent_path());
+        trace_out.open(trace_path_);
+        trace_out << "=== Crayon Boot Trace ===\n";
+    }
+
     while (running_) {
         if (frame_limit_ > 0 && frame_count_ >= frame_limit_) { running_ = false; break; }
+
+        if (trace_out.is_open() && (frame_count_ < 60 || frame_count_ % 50 == 0)) {
+            auto cpu = emulator_->get_cpu().get_state();
+            auto pia = emulator_->get_pia().get_state();
+            auto& mem = emulator_->get_memory();
+            uint16_t firq_vec = (mem.read(0x2067) << 8) | mem.read(0x2068);
+            trace_out << "Frame " << std::dec << frame_count_
+                      << ": PC=$" << std::hex << std::setfill('0') << std::setw(4) << cpu.pc
+                      << " CC=$" << std::setw(2) << (int)cpu.cc
+                      << " (F=" << ((cpu.cc & 0x40) ? "1" : "0")
+                      << " I=" << ((cpu.cc & 0x10) ? "1" : "0") << ")"
+                      << " FIRQ_VEC=$" << std::setw(4) << firq_vec
+                      << " frame_ctr=$" << std::setw(2) << (int)mem.read(0x2031)
+                      << " cursor_en=$" << std::setw(2) << (int)mem.read(0x2063)
+                      << " irqb1=" << pia.irqb1_flag
+                      << " crb=$" << std::setw(2) << (int)pia.crb
+                      << "\n";
+        }
+
         emulator_->run_frame();
         frame_count_++;
+    }
+
+    if (trace_out.is_open()) {
+        trace_out << "\nTrace complete: " << std::dec << frame_count_ << " frames\n";
+        std::cout << "Trace written: " << trace_path_ << "\n";
     }
 }
 

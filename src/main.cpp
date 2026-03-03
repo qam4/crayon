@@ -22,6 +22,7 @@ void print_usage(const char* program) {
               << "  --screenshot <path> Save PNG screenshot after run (headless)\n"
               << "  --scale <n>        Display scale (1-4, default 2)\n"
               << "  --debugger         Enable debugger (F5 to toggle)\n"
+              << "  --trace <path>     Dump per-frame trace to file (headless)\n"
               << "  --help             Show this help\n";
 }
 
@@ -34,6 +35,7 @@ int main(int argc, char* argv[]) {
     bool headless = false;
     int frame_limit = 0;
     std::string screenshot_path;
+    std::string trace_path;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -47,6 +49,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--scale" && i + 1 < argc) config.display_scale = std::stoi(argv[++i]);
         else if (arg == "--screenshot" && i + 1 < argc) screenshot_path = argv[++i];
         else if (arg == "--debugger") config.enable_debugger = true;
+        else if (arg == "--trace" && i + 1 < argc) trace_path = argv[++i];
         else { std::cerr << "Unknown option: " << arg << "\n"; print_usage(argv[0]); return 1; }
     }
 
@@ -55,6 +58,7 @@ int main(int argc, char* argv[]) {
     if (headless) {
         auto hf = std::make_unique<crayon::HeadlessFrontend>();
         if (frame_limit > 0) hf->set_frame_limit(frame_limit);
+        if (!trace_path.empty()) hf->set_trace_path(trace_path);
         frontend = std::move(hf);
     } else {
 #ifdef ENABLE_SDL

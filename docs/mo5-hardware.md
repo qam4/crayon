@@ -234,14 +234,18 @@ CRB (Control Register B) at `$A7C3`:
 
 ### Interrupts
 
-- **FIRQ**: Triggered by VSYNC via CB1 (PIA Port B). The gate array asserts CB1 at the
-  start of vertical blanking (50 Hz). The FIRQ handler should read Port B data to
-  acknowledge the interrupt (clears IRQB1 flag). [MT] [PK]
-- **IRQ**: Triggered by light pen strobe via CA1 (PIA Port A). [MT]
+- **IRQ**: Triggered by VSYNC via CB1 (PIA Port B). The gate array asserts CB1 at the
+  start of vertical blanking (50 Hz). The IRQ handler at $F657 reads Port B data to
+  acknowledge the interrupt (clears IRQB1 flag), increments the frame counter at $2031,
+  and handles cursor blinking via JMP [$2061]. [MT] [PK]
+- **IRQ** (also): Light pen strobe via CA1 (PIA Port A) also asserts IRQ. The IRQ
+  handler checks CRB bit 7 first to distinguish vsync from other sources. [MT]
+- **FIRQ**: The FIRQ vector ($FFF6) points to $F642 which is `JMP [$2067]`. The default
+  target at $2067 is $F0AD (just RTI). FIRQ is effectively unused on the base MO5. [DC]
 
-Note: During early boot, the MO5 ROM's default FIRQ handler is just RTI (no Port B
-read), so the IRQB1 flag would never clear on real hardware. The emulator auto-clears
-the flag after the CPU takes the FIRQ to prevent an infinite FIRQ loop. [DC]
+Note: Both PIA interrupt outputs (IRQA and IRQB) connect to the CPU IRQ line on the
+MO5. This was confirmed by ROM disassembly — the IRQ handler at $F657 is the real
+vsync handler, while the FIRQ handler at $F642 is just a stub. [DC] [KS]
 
 ---
 

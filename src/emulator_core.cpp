@@ -58,9 +58,14 @@ void EmulatorCore::run_frame() {
         handle_interrupts();
     }
 
-    // Render frame
-    gate_array_.render_frame(memory_.get_pixel_ram(), memory_.get_color_ram());
+    // Signal VSYNC — sets irqb1_flag in PIA. The IRQ handler will run
+    // naturally during the next frame's instruction loop when the CPU
+    // checks interrupts after each instruction. The handler at $F657
+    // reads Port B ($A7C1) which clears irqb1_flag, then does cursor work.
     pia_.signal_vsync();
+
+    // Render the frame
+    gate_array_.render_frame(memory_.get_pixel_ram(), memory_.get_color_ram());
     audio_.generate_samples(MasterClock::CYCLES_PER_FRAME);
     frame_count_++;
 }
@@ -108,18 +113,15 @@ Result<void> EmulatorCore::load_state(const std::string& path) {
 }
 
 void EmulatorCore::handle_interrupts() {
-    bool firq_was_active = pia_.firq_active();
-    cpu_.assert_irq(pia_.irq_active());
-    cpu_.assert_firq(firq_was_active);
-
-    // If FIRQ line was just asserted and CPU will take it, acknowledge
-    // the vsync interrupt so it doesn't re-fire every instruction.
-    // The CPU's check_interrupts() (called at end of execute_instruction)
-    // will service the FIRQ on the next cycle. We clear the PIA flag now
-    // so firq_active() returns false on subsequent calls this frame.
-    if (firq_was_active) {
-        pia_.acknowledge_firq();
-    }
+    // MO5 interrupt wiring (confirmed by ROM disassembly):
+    //   PIA IRQA (CA1 = light pen) → active but unused by default handler
+    //   PIA IRQB (CB1 = vsync)    → active, drives the cursor/frame counter
+    // Both PIA IRQ outputs connect to the CPU IRQ line (active-OR).
+    // The FIRQ vector ($FFF6) points to a stub that just does RTI.
+    // The IRQ vector ($FFF8) points to $F657 — the real vsync handler
+    // that increments the frame counter, checks cursor enable, and draws cursor.
+    cpu_.assert_irq(pia_.irq_active() || pia_.firq_active());
+    cpu_.assert_firq(false);
 }
 
 } // namespace crayon

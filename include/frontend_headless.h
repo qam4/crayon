@@ -33,6 +33,7 @@ public:
     void dump_framebuffer(const std::string& filename) override;
 
     void set_frame_limit(int frames) { frame_limit_ = frames; }
+    void set_trace_path(const std::string& path) { trace_path_ = path; }
 
 private:
     FrontendConfig config_;
@@ -43,6 +44,7 @@ private:
     bool running_ = false;
     int frame_count_ = 0;
     int frame_limit_ = 0;
+    std::string trace_path_;
 };
 
 } // namespace crayon

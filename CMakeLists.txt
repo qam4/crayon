@@ -203,6 +203,10 @@ if(BUILD_TESTS)
     add_executable(boot_diag tools/boot_diag.cpp)
     target_link_libraries(boot_diag crayon_core)
 
+    # ROM disassembly tool
+    add_executable(disasm_roms tools/disasm_roms.cpp)
+    target_link_libraries(disasm_roms crayon_core)
+
     enable_testing()
     
     FetchContent_Declare(

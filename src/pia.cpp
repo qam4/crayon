@@ -100,12 +100,10 @@ bool PIA::firq_active() const {
 void PIA::signal_vsync() { state_.irqb1_flag = true; }
 void PIA::signal_lightpen() { state_.irqa1_flag = true; }
 
-void PIA::acknowledge_firq() {
-    // Auto-clear the vsync (CB1) interrupt flag when the CPU takes the FIRQ.
-    // On real hardware, the FIRQ handler reads PIA port B data register to clear
-    // irqb1_flag. During early boot the MO5 ROM's default FIRQ handler is just RTI
-    // (no port B read), so the flag would never clear, causing an infinite FIRQ loop.
-    // This simulates edge-triggered vsync behavior: one FIRQ per frame.
+void PIA::acknowledge_vsync() {
+    // Clear the vsync (CB1) interrupt flag. The ROM's IRQ handler at $F657
+    // normally clears this by reading Port B data ($A7C1) at $F691.
+    // This method exists as a safety net for edge cases.
     state_.irqb1_flag = false;
 }
 
