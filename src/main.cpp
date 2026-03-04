@@ -27,6 +27,7 @@ void print_usage(const char* program) {
               << "  --type <text>      Inject keystrokes in headless mode (use \\n for ENTER)\n"
               << "  --type-file <path> Read keystrokes from file (avoids shell quoting issues)\n"
               << "  --type-delay <n>   Frames to wait before typing (default 60)\n"
+              << "  --k7-mode <mode>   Cassette load mode: fast (default) or slow\n"
               << "  --help             Show this help\n";
 }
 
@@ -76,6 +77,7 @@ int main(int argc, char* argv[]) {
             else { std::cerr << "Cannot open type-file: " << argv[i] << "\n"; return 1; }
         }
         else if (arg == "--type-delay" && i + 1 < argc) type_delay = std::stoi(argv[++i]);
+        else if (arg == "--k7-mode" && i + 1 < argc) config.k7_mode = argv[++i];
         else { std::cerr << "Unknown option: " << arg << "\n"; print_usage(argv[0]); return 1; }
     }
 

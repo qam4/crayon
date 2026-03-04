@@ -68,6 +68,8 @@ def run_sdl_mode(exe_path, args, extra_args):
         cmd.extend(["--cassette", args.cassette])
     if args.debugger:
         cmd.append("--debugger")
+    if args.k7_mode:
+        cmd.extend(["--k7-mode", args.k7_mode])
     cmd.extend(extra_args)
 
     print("Command:", " ".join(cmd))
@@ -99,6 +101,8 @@ def run_headless_mode(exe_path, args, extra_args):
         cmd.extend(["--type-file", args.type_file])
     if args.type_delay is not None:
         cmd.extend(["--type-delay", str(args.type_delay)])
+    if args.k7_mode:
+        cmd.extend(["--k7-mode", args.k7_mode])
 
     # Auto-screenshot at end of run
     screenshot_path = args.screenshot or f"screenshots/frame_{frames}.png"
@@ -128,6 +132,7 @@ Examples:
   %(prog)s headless --frames 500    # Headless mode, 500 frames
   %(prog)s sdl --cassette "roms/Yeti (1984) (Loriciels).k7"  # Load a K7 cassette
   %(prog)s headless --cassette "roms/Yeti.k7" --type 'LOADM"",,R\\n' --trace debug/trace.txt
+  %(prog)s sdl --cassette "roms/game.k7" --k7-mode slow  # Real-time 1200 baud loading
         """
     )
 
@@ -221,6 +226,13 @@ Examples:
         type=int,
         default=None,
         help="Frames to wait before typing (default 60)"
+    )
+
+    parser.add_argument(
+        "--k7-mode",
+        default=None,
+        choices=["fast", "slow"],
+        help="Cassette load mode: fast (default) or slow"
     )
 
     args, extra_args = parser.parse_known_args()

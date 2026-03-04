@@ -19,6 +19,11 @@ struct CassetteState {
     uint64_t current_cycle = 0;      // Updated each frame by emulator
 };
 
+enum class CassetteLoadMode {
+    Fast,   // Direct data injection (default)
+    Slow    // Real-time 1200 baud audio simulation
+};
+
 class CassetteInterface {
 public:
     CassetteInterface();
@@ -39,11 +44,15 @@ public:
     bool is_playing() const;
     bool is_recording() const;
 
+    void set_load_mode(CassetteLoadMode mode);
+    CassetteLoadMode get_load_mode() const;
+
     CassetteState get_state() const;
     void set_state(const CassetteState& state);
 
 private:
     CassetteState state_;
+    CassetteLoadMode load_mode_ = CassetteLoadMode::Fast;
 };
 
 } // namespace crayon

@@ -101,6 +101,12 @@ bool HeadlessFrontend::initialize(const FrontendConfig& config) {
         if (result.is_err()) { std::cerr << "Failed to load K7: " << result.error << "\n"; return false; }
         std::cout << "Loaded cassette: " << config.cassette_path << "\n";
     }
+    if (config.k7_mode == "slow") {
+        emulator_->get_cassette().set_load_mode(crayon::CassetteLoadMode::Slow);
+        std::cout << "K7 load mode: slow (1200 baud)\n";
+    } else {
+        std::cout << "K7 load mode: fast (direct injection)\n";
+    }
 
     if (config.enable_debugger) {
         debugger_ = std::make_unique<Debugger>(emulator_.get());

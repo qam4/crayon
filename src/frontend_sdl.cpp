@@ -58,6 +58,12 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
         if (result.is_err()) { std::cerr << "Failed to load K7: " << result.error << "\n"; return false; }
         std::cout << "Loaded cassette: " << config.cassette_path << "\n";
     }
+    if (config.k7_mode == "slow") {
+        emulator_->get_cassette().set_load_mode(crayon::CassetteLoadMode::Slow);
+        std::cout << "K7 load mode: slow (1200 baud)\n";
+    } else {
+        std::cout << "K7 load mode: fast (direct injection)\n";
+    }
 
     if (config.enable_debugger) {
         debugger_ = std::make_unique<Debugger>(emulator_.get());
@@ -163,7 +169,8 @@ void SDLFrontend::render_frame() {
         auto cass = emulator_->get_cassette().get_state();
         if (!cass.k7_data.empty()) {
             int pct = static_cast<int>(cass.read_position * 100 / cass.k7_data.size());
-            status << "  |  K7: ";
+            bool is_fast = emulator_->get_cassette().get_load_mode() == crayon::CassetteLoadMode::Fast;
+            status << "  |  K7(" << (is_fast ? "F" : "S") << "): ";
             if (cass.playing)
                 status << "Playing " << pct << "%";
             else if (cass.recording)

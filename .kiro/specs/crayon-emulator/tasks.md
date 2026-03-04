@@ -287,34 +287,72 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
 - [x] 10. Checkpoint — Emulator boots to BASIC prompt
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 11. Milestone 5 — Cassette loading (K7 format)
-  - [x] 11.1 Implement K7 file format parser
-    - Implement `load_k7()`: parse K7 file containing leader sequences, sync bytes, data blocks with headers and checksums
-    - Validate K7 file structure and return `Result<void>` errors for malformed files
-    - Store parsed data in `k7_data_` vector for sequential playback
-    - _Requirements: 10.1, 10.4_
-  - [x] 11.2 Implement K7 file serializer
-    - Implement `save_k7()`: serialize `record_buffer_` into valid K7 format with leader, sync, headers, data blocks, and checksums
-    - Write the serialized data to a file
-    - _Requirements: 10.5_
-  - [x] 11.3 Implement cassette playback and recording through PIA
+- [ ] 11. Milestone 5 — Cassette loading (K7 format)
+  - [x] 11.1 Implement basic K7 file loading
+    - Implement `load_k7()`: read raw K7 file bytes into memory
+    - Store raw data in `k7_data_` vector
+    - _Requirements: 10.1_
+  - [x] 11.2 Implement basic cassette playback through gate array
     - Implement `play()`, `stop()`, `rewind()` transport controls
-    - Implement `read_data_bit()`: return next bit from K7 data stream, advancing read position
+    - Implement `read_data_bit()`: present bits from raw K7 data through $A7C0 bit 7 at 1200 baud
     - Implement `write_data_bit()`: capture bit into record buffer during SAVE operations
-    - Wire cassette data lines through PIA Port A/B for LOAD and SAVE commands
-    - _Requirements: 10.2, 10.3_
-  - [x] 11.4 Implement cassette state serialization
+    - Implement `update_cycle()` for timing tracking
+    - _Requirements: 10.4, 10.5_
+  - [x] 11.3 Implement cassette state serialization
     - Implement `get_state()` / `set_state()` for save state support
     - Serialize K7 data, read position, bit position, playing/recording state, record buffer
-    - _Requirements: 12.5_
-  - [ ]* 11.5 Write property tests for K7 parse/serialize round-trip
+    - Preserve K7 data across emulator reset
+    - _Requirements: 10.13, 12.5_
+  - [ ] 11.4 Implement K7 file format parser (block-level)
+    - Parse raw K7 bytes into structured `K7File` with `K7Block` entries
+    - Detect leader tones (repeated 0x01 bytes), sync byte (0x3C), block boundaries
+    - Parse block type (0x00=header, 0x01=data, 0xFF=EOF), length, payload, checksum
+    - Parse header block: filename, file type (BASIC/data/machine code), start/exec addresses
+    - Validate checksums and return errors for malformed files
+    - _Requirements: 10.6, 10.9_
+  - [ ] 11.5 Implement K7 file serializer
+    - Serialize `K7File` back to raw bytes: leader + sync + blocks with checksums
+    - Implement `save_k7()` using the serializer for SAVE command output
+    - _Requirements: 10.7_
+  - [ ] 11.6 Disassemble Monitor ROM cassette read routine
+    - Use `disasm_roms` to identify the Monitor ROM's cassette byte-read subroutine
+    - Document the entry point address, register conventions (which register returns the byte, carry flag meaning), and return address
+    - Document the LOAD/LOADM dispatch path: SWI → RAM vector $205E → BASIC handler → Monitor ROM cassette routine
+    - Store findings in `docs/mo5-hardware.md` section 9 (Cassette Interface)
+    - This is a prerequisite for fast loading — we need to know exactly where to intercept
+    - _Requirements: 10.3_
+  - [ ] 11.7 Implement fast loading mode (direct data injection)
+    - In `EmulatorCore::run_frame()`, after each instruction, check if PC matches the cassette byte-read entry point
+    - When matched and `load_mode_ == Fast`: call `try_fast_read_byte()` to get next byte from parsed K7 data, place in CPU register, set flags, advance PC past the routine
+    - For LOADM: implement `try_fast_load()` that parses all K7 blocks and writes data directly to target RAM addresses from the header block
+    - Loading completes within a single frame
+    - _Requirements: 10.3, 10.9, 10.10_
+  - [ ] 11.8 Implement slow loading mode (1200 baud audio simulation)
+    - Refine `read_data_bit()` to present bits from parsed K7 blocks (not raw bytes) through $A7C0 bit 7
+    - Include leader tones, sync bytes, and inter-block gaps at correct timing
+    - ROM's cassette read routine polls naturally — no interception needed
+    - _Requirements: 10.4_
+  - [ ] 11.9 Add load mode toggle to UI
+    - Add `CassetteLoadMode` toggle to menu system (Fast/Slow)
+    - Add keyboard shortcut (e.g., Shift+F6) to toggle mode at runtime
+    - Show current mode in status bar (e.g., "K7:Fast" or "K7:Slow")
+    - Persist mode preference in ConfigManager
+    - _Requirements: 10.8_
+  - [ ] 11.10 Test K7 loading with real games
+    - Test fast mode with a BASIC program K7 (LOAD"")
+    - Test fast mode with a machine-language K7 (LOADM"",,R)
+    - Test slow mode with the same files
+    - Use headless trace to verify correct loading behavior
+    - Document any games that require slow mode (timing-sensitive loaders)
+    - _Requirements: 10.2, 10.3, 10.9_
+  - [ ]* 11.11 Write property tests for K7 parse/serialize round-trip
     - **Property 20: K7 parse/serialize round-trip**
-    - Generate random valid K7 byte sequences; parse to internal representation; serialize back; verify byte-identical
-    - **Validates: Requirements 10.7**
-  - [ ]* 11.6 Write property tests for K7 data write/read round-trip
+    - Generate random valid K7 byte sequences; parse to K7File; serialize back; verify byte-identical
+    - **Validates: Requirements 10.12**
+  - [ ]* 11.12 Write property tests for K7 data write/read round-trip
     - **Property 21: K7 data write/read round-trip**
     - Generate random data byte sequences; write via cassette output; read back via cassette input; verify identical
-    - **Validates: Requirements 10.6**
+    - **Validates: Requirements 10.11**
 
 - [x] 12. Milestone 6 — Keyboard input
   - [x] 12.1 Implement MO5 chiclet keyboard matrix scanning

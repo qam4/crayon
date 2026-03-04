@@ -99,6 +99,9 @@ void CassetteInterface::write_data_bit(bool bit) {
 bool CassetteInterface::is_playing() const { return state_.playing; }
 bool CassetteInterface::is_recording() const { return state_.recording; }
 
+void CassetteInterface::set_load_mode(CassetteLoadMode mode) { load_mode_ = mode; }
+CassetteLoadMode CassetteInterface::get_load_mode() const { return load_mode_; }
+
 CassetteState CassetteInterface::get_state() const { return state_; }
 void CassetteInterface::set_state(const CassetteState& state) { state_ = state; }
 

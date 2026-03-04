@@ -31,7 +31,7 @@ The fork strategy is surgical: the Videopac CPU (Intel 8048), VDC (Intel 8245), 
 2. **Memory map + PIA** — basic I/O, address decoding
 3. **Video gate array** — bitmap rendering, forme/fond colors
 4. **Boot MO5 BIOS to BASIC prompt** — first real milestone
-5. **Cassette loading** — K7 format parsing and playback
+5. **Cassette loading** — K7 format parsing, fast mode (direct injection), slow mode (1200 baud)
 6. **Keyboard input** — chiclet keyboard matrix scanning
 7. **Light pen emulation** — crayon optique via mouse
 8. **Libretro core + Android** — RetroArch integration
@@ -483,10 +483,95 @@ private:
 
 ### CassetteInterface (new component)
 
-Handles K7 format file I/O through the PIA cassette data lines.
+Handles K7 format file I/O with two loading modes: fast (direct data injection, default)
+and slow (real-time 1200 baud audio simulation). The fast mode intercepts the ROM's
+cassette read routine to bypass bit-by-bit polling, while the slow mode presents bits
+through the gate array register at authentic timing.
+
+#### K7 File Format
+
+The `.k7` file is a raw dump of the modulated cassette data stream. The Thomson cassette
+protocol structures data as follows:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Leader: repeated 0x01 bytes (synchronization tone) │
+├─────────────────────────────────────────────────────┤
+│  Sync byte: 0x3C (marks start of a block)           │
+├─────────────────────────────────────────────────────┤
+│  Block type: 0x00 = header, 0x01 = data, 0xFF = EOF │
+├─────────────────────────────────────────────────────┤
+│  Block length: 1 byte (number of data bytes)        │
+├─────────────────────────────────────────────────────┤
+│  Data payload: 0..255 bytes                         │
+├─────────────────────────────────────────────────────┤
+│  Checksum: 1 byte (sum of type + length + data)     │
+└─────────────────────────────────────────────────────┘
+```
+
+Header block (type 0x00) payload contains: filename (8 bytes, space-padded),
+file type (1 byte: 0x00=BASIC, 0x01=data, 0x02=machine code), mode (1 byte),
+and for machine code: start address (2 bytes) and exec address (2 bytes).
+
+#### Fast Loading Strategy
+
+The fast mode intercepts the ROM's cassette byte-read routine. When the CPU's PC
+reaches the known entry point of the Monitor ROM's "read one byte from cassette"
+subroutine, the emulator:
+
+1. Reads the next byte from the parsed K7 block data
+2. Places it in the A register (or wherever the ROM routine returns it)
+3. Sets/clears the carry flag to indicate success/failure
+4. Advances PC past the routine (to the RTS or return point)
+
+This requires identifying the exact entry and exit points of the cassette read routine
+in the Monitor ROM via disassembly (task 11.6). The interception is done in
+`EmulatorCore::run_frame()` by checking PC after each instruction (similar to a
+breakpoint).
+
+For LOADM (machine code), the fast loader can go further: parse the entire K7 file,
+extract all data blocks, and write them directly to the target RAM addresses specified
+in the header block — completing the entire load in one step.
+
+#### Slow Loading Strategy
+
+The slow mode presents bits through gate array register $A7C0 bit 7 at 1200 baud
+(~833 CPU cycles per bit). The ROM's cassette read routine polls this bit naturally.
+This mode is cycle-accurate and produces authentic loading times.
+
+#### Auto-Play Behavior
+
+On real hardware, the user types `LOAD""` first, then presses PLAY on the tape player.
+The ROM activates the motor via PIA CA2, and the tape starts. In the emulator, this
+maps to auto-play: when the ROM's cassette read routine starts polling $A7C0 bit 7
+and a K7 file is loaded but not playing, the emulator automatically starts playback.
+This is equivalent to the motor control activating the tape drive — no manual "press
+PLAY" step is needed. The auto-play is triggered by `read_data_bit()` detecting a
+read while the tape is loaded but stopped.
 
 ```cpp
 namespace crayon {
+
+enum class CassetteLoadMode {
+    Fast,   // Direct data injection (default)
+    Slow    // Real-time 1200 baud audio simulation
+};
+
+// Parsed K7 block
+struct K7Block {
+    uint8_t type;           // 0x00=header, 0x01=data, 0xFF=EOF
+    std::vector<uint8_t> data;
+    uint8_t checksum;
+};
+
+// Parsed K7 file
+struct K7File {
+    std::vector<K7Block> blocks;
+    std::string filename;       // From header block
+    uint8_t file_type;          // 0x00=BASIC, 0x01=data, 0x02=machine code
+    uint16_t start_address;     // For machine code
+    uint16_t exec_address;      // For machine code
+};
 
 class CassetteInterface {
 public:
@@ -496,13 +581,27 @@ public:
     Result<void> save_k7(const std::string& path);
 
     void reset();
-    void play();
+    void play(uint64_t current_master_cycle);
     void stop();
-    void rewind();
+    void rewind(uint64_t current_master_cycle);
 
-    // PIA interface
+    // Slow mode: PIA/gate array interface
     bool read_data_bit();
     void write_data_bit(bool bit);
+    void update_cycle(uint64_t cycle);
+
+    // Fast mode: direct data injection
+    // Called by EmulatorCore when PC hits cassette read entry point
+    bool try_fast_read_byte(uint8_t& out_byte);
+    bool try_fast_load(MemorySystem& memory, CPU6809& cpu);
+
+    // Mode control
+    void set_load_mode(CassetteLoadMode mode);
+    CassetteLoadMode get_load_mode() const;
+
+    // K7 format parsing
+    Result<K7File> parse_k7(const std::vector<uint8_t>& raw_data);
+    std::vector<uint8_t> serialize_k7(const K7File& file);
 
     // State
     CassetteState get_state() const;
@@ -510,14 +609,15 @@ public:
 
     bool is_playing() const;
     bool is_recording() const;
+    bool has_data() const;
+    const K7File& get_parsed_file() const;
 
 private:
-    std::vector<uint8_t> k7_data_;
-    size_t read_position_;
-    uint8_t bit_position_;
-    bool playing_;
-    bool recording_;
-    std::vector<uint8_t> record_buffer_;
+    CassetteState state_;
+    K7File parsed_file_;
+    CassetteLoadMode load_mode_ = CassetteLoadMode::Fast;
+    size_t current_block_ = 0;
+    size_t block_byte_pos_ = 0;
 };
 
 } // namespace crayon

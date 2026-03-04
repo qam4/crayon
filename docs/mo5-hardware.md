@@ -272,8 +272,56 @@ like the TO7). [AM]
 ### Hardware
 
 - Data output: PIA Port A bit 0 [MT]
-- Data input: Gate array register bit 7 (active low) [MT]
+- Data input: Gate array register ($A7C0) bit 7, active low (1 = no signal) [MT]
+- Motor control: PIA CA2 output (active low, directly controls tape motor relay) [MT]
 - Baud rate: 1200 baud (standard Thomson K7 format) [DC]
+- Bit timing: ~833 CPU cycles per bit at 1 MHz [DC]
+
+### Tape Connector Pinout
+
+| Pin | Function | Notes |
+|-----|----------|-------|
+| 1 | Motor control | Set to 0 to spin motor (active low) [PK] |
+| 2 | Ground | |
+| 3 | Audio input | Analog audio, not used for data [PK] |
+| 4 | Data input | TTL level, from tape drive to PIA [PK] |
+| 5 | Data output | TTL level, from PIA to tape drive [PK] |
+
+The tape drive handles analog filtering and signal cleanup internally. The computer
+sees clean TTL-level binary data on pin 4. [PK]
+
+### Real Hardware Loading Workflow
+
+On real hardware with the official Thomson LEP tape player: [MT] [DC]
+
+1. Insert the cassette tape into the player
+2. Type the BASIC command: `LOAD""` (BASIC program) or `LOADM"",,R` (machine code)
+3. Press ENTREE (Enter)
+4. The screen displays "Searching..." — the ROM activates the motor via PIA CA2
+5. NOW press PLAY on the tape player
+6. The ROM's cassette routine polls $A7C0 bit 7 for data bits
+7. When the leader tone and sync byte are detected, loading begins
+8. On completion, the motor is stopped via PIA CA2
+
+Why this order matters:
+- The LEP tape player has motor control via pin 1. If PLAY is held down, the motor
+  only spins when the computer asserts the motor control line (after the LOAD command).
+- If you press PLAY before typing the command, the tape's header data may pass before
+  the ROM's read routine is active, causing a permanent "Searching" loop.
+
+### Emulator Loading Workflow
+
+In an emulator, the workflow is simplified: [DC]
+
+1. "Insert" the K7 file via the menu or command line (equivalent to inserting the tape)
+2. Type the BASIC command: `LOAD""` or `LOADM"",,R`
+3. The emulator auto-plays the tape when the ROM's cassette read routine starts polling
+   $A7C0 bit 7 — no manual "press PLAY" step needed
+
+The auto-play behavior is correct because the emulator controls the virtual tape drive
+directly. When the ROM starts reading, the emulator detects the read and begins
+presenting data immediately. This is equivalent to the motor control pin activating
+the tape drive on real hardware. [DC]
 
 ### K7 File Format
 
@@ -281,11 +329,54 @@ The `.k7` file format is a raw dump of the cassette data stream. It contains the
 modulated data as it would appear on tape, including leader tones, sync bytes, and
 data blocks. [DC]
 
-The ROM's cassette routines handle:
-- Leader tone detection (synchronization)
-- Byte framing (start/stop bits)
-- Block headers and checksums
-- BASIC program loading via `LOAD""` or `RUN""`
+#### Block Structure
+
+A K7 file consists of one or more blocks, each preceded by a leader tone:
+
+```
+Leader:     Repeated 0x01 bytes (synchronization tone, variable length)
+Sync byte:  0x3C (marks the start of a block)
+Block type: 1 byte — 0x00 = header, 0x01 = data, 0xFF = end-of-file
+Length:     1 byte — number of data bytes in this block (0-255)
+Data:       0..255 bytes of payload
+Checksum:   1 byte — sum of (type + length + all data bytes) & 0xFF
+```
+
+#### Header Block (type 0x00)
+
+The first block in a K7 file is always a header block containing file metadata:
+
+| Offset | Size | Contents |
+|--------|------|----------|
+| 0 | 8 | Filename (space-padded ASCII) |
+| 8 | 1 | File type: 0x00=BASIC, 0x01=data, 0x02=machine code |
+| 9 | 1 | Mode byte |
+| 10 | 2 | Start address (big-endian, for machine code) |
+| 12 | 2 | Exec address (big-endian, for machine code, used by ,,R) |
+
+#### Data Blocks (type 0x01)
+
+Contain the actual program data. Multiple data blocks may follow the header.
+For BASIC programs, the data is the tokenized BASIC source.
+For machine code, the data is the raw binary loaded at the start address.
+
+#### End-of-File Block (type 0xFF)
+
+Marks the end of the file. May have zero-length data.
+
+### ROM Cassette Routines
+
+The Monitor ROM and BASIC ROM cooperate to handle cassette I/O:
+
+- The SWI instruction is used as a system call mechanism. The byte following SWI
+  is the function number. The SWI handler at $F63E does `JMP [$205E]`, which
+  redirects through a RAM vector to the BASIC ROM's SWI dispatcher.
+- BASIC's `LOAD""` command eventually calls the Monitor ROM's cassette read routine
+  to read bytes one at a time from the tape.
+- The cassette read routine polls $A7C0 bit 7 in a tight loop, timing the transitions
+  to decode 1200 baud data.
+- The exact entry point and register conventions of the cassette byte-read routine
+  need to be identified via disassembly (see task 11.6 in the implementation plan).
 
 ---
 

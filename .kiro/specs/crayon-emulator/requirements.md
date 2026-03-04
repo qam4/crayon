@@ -181,17 +181,23 @@ Crayon is a Thomson MO5 emulator written in modern C++, built by forking the exi
 
 ### Requirement 10: Cassette Interface (K7 Format)
 
-**User Story:** As a developer, I want cassette tape emulation using the K7 file format, so that users can load and save MO5 programs.
+**User Story:** As a user, I want cassette tape emulation using the K7 file format with both fast and slow loading modes, so that I can load MO5 programs instantly for convenience or at real-time speed for authenticity.
 
 #### Acceptance Criteria
 
 1. THE Cassette_Interface SHALL read K7 format file images containing Thomson MO5 cassette data
-2. WHEN MO5 BASIC initiates a cassette read (LOAD command), THE Cassette_Interface SHALL provide data bytes from the loaded K7 file through the PIA cassette data input line
-3. WHEN MO5 BASIC initiates a cassette write (SAVE command), THE Cassette_Interface SHALL capture the output data stream from the PIA cassette data output line and store it in K7 format
-4. THE Cassette_Interface SHALL parse K7 files containing leader sequences, sync bytes, and data blocks with appropriate header and checksum fields as defined by the Thomson cassette format
-5. THE Cassette_Interface SHALL serialize captured cassette output data into valid K7 format files
-6. FOR ALL valid K7 file data, writing the data via SAVE and reading it back via LOAD SHALL produce identical byte sequences (round-trip property)
-7. FOR ALL valid K7 files, parsing the file into an internal representation and serializing it back SHALL produce a byte-identical K7 file (round-trip property)
+2. THE Cassette_Interface SHALL support two loading modes: "fast" (default) and "slow"
+3. IN fast mode, WHEN the CPU executes the ROM's cassette read routine, THE Cassette_Interface SHALL intercept the read by trapping at the known entry point, parse the K7 data directly, write the decoded payload into the target RAM addresses, and return control to the caller as if the read completed normally — bypassing the bit-by-bit audio simulation entirely
+4. IN slow mode, WHEN MO5 BASIC initiates a cassette read (LOAD command), THE Cassette_Interface SHALL provide data bits from the loaded K7 file through the gate array register ($A7C0 bit 7) at 1200 baud timing (~833 CPU cycles per bit), simulating real-time cassette playback
+5. WHEN MO5 BASIC initiates a cassette write (SAVE command), THE Cassette_Interface SHALL capture the output data stream from the PIA cassette data output line (Port A bit 0) and store it in K7 format
+6. THE Cassette_Interface SHALL parse the K7 file format including leader tones (0x01 bytes), sync byte (0x3C), block type byte, block length, data payload, and checksum — as defined by the Thomson cassette format used by the Monitor ROM
+7. THE Cassette_Interface SHALL serialize captured cassette output data into valid K7 format files
+8. THE Cassette_Interface SHALL allow the user to switch between fast and slow modes at runtime via the menu system and a keyboard shortcut
+9. IN fast mode, THE Cassette_Interface SHALL support both BASIC programs (loaded via LOAD"") and machine-language programs (loaded via LOADM"") by correctly handling all K7 block types: header block (type 0x00), data block (type 0x01), and end-of-file block (type 0xFF)
+10. IN fast mode, THE Cassette_Interface SHALL complete loading within a single frame (no multi-frame delay), making the load appear instantaneous to the user
+11. FOR ALL valid K7 file data, writing the data via SAVE and reading it back via LOAD (in either mode) SHALL produce identical byte sequences (round-trip property)
+12. FOR ALL valid K7 files, parsing the file into the internal block representation and serializing it back SHALL produce a byte-identical K7 file (round-trip property)
+13. THE Cassette_Interface SHALL preserve loaded K7 data across emulator reset, so the user does not need to re-select the file after resetting
 
 ### Requirement 11: Master Clock and Timing
 

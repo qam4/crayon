@@ -28,6 +28,7 @@ struct FrontendConfig {
     std::string monitor_rom_path;
     std::string cartridge_path;
     std::string cassette_path;
+    std::string k7_mode = "fast";  // "fast" or "slow"
     std::string save_state_path;
     std::string screenshot_path = "screenshots";
 };
