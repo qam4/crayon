@@ -8,6 +8,23 @@
 
 namespace crayon {
 
+// Parsed K7 block
+struct K7Block {
+    uint8_t type;           // 0x00=header, 0x01=data, 0xFF=EOF
+    std::vector<uint8_t> data;
+    uint8_t checksum;
+};
+
+// Parsed K7 file
+struct K7File {
+    std::vector<K7Block> blocks;
+    std::string filename;       // From header block (8 chars, trimmed)
+    uint8_t file_type = 0;     // 0x00=BASIC, 0x01=data, 0x02=machine code
+    uint8_t mode = 0;
+    uint16_t start_address = 0; // For machine code
+    uint16_t exec_address = 0;  // For machine code
+};
+
 struct CassetteState {
     std::vector<uint8_t> k7_data;
     size_t read_position = 0;
@@ -47,12 +64,21 @@ public:
     void set_load_mode(CassetteLoadMode mode);
     CassetteLoadMode get_load_mode() const;
 
+    // K7 format parsing
+    Result<K7File> parse_k7(const std::vector<uint8_t>& raw_data);
+
+    bool has_data() const;
+    const K7File& get_parsed_file() const;
+
     CassetteState get_state() const;
     void set_state(const CassetteState& state);
 
 private:
     CassetteState state_;
+    K7File parsed_file_;
     CassetteLoadMode load_mode_ = CassetteLoadMode::Fast;
+    size_t current_block_ = 0;
+    size_t block_byte_pos_ = 0;
 };
 
 } // namespace crayon

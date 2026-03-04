@@ -19,6 +19,16 @@ Result<void> CassetteInterface::load_k7(const std::string& path) {
     state_.k7_data.assign((std::istreambuf_iterator<char>(file)), {});
     state_.read_position = 0;
     state_.bit_position = 0;
+
+    // Parse the raw data into structured blocks
+    auto result = parse_k7(state_.k7_data);
+    if (result.is_ok()) {
+        parsed_file_ = std::move(*result.value);
+        current_block_ = 0;
+        block_byte_pos_ = 0;
+    }
+    // Even if parsing fails, keep raw data for slow mode playback
+
     return Result<void>::ok();
 }
 
@@ -101,6 +111,91 @@ bool CassetteInterface::is_recording() const { return state_.recording; }
 
 void CassetteInterface::set_load_mode(CassetteLoadMode mode) { load_mode_ = mode; }
 CassetteLoadMode CassetteInterface::get_load_mode() const { return load_mode_; }
+
+bool CassetteInterface::has_data() const { return !parsed_file_.blocks.empty(); }
+const K7File& CassetteInterface::get_parsed_file() const { return parsed_file_; }
+
+Result<K7File> CassetteInterface::parse_k7(const std::vector<uint8_t>& raw_data) {
+    K7File file{};
+    size_t pos = 0;
+    const size_t size = raw_data.size();
+
+    if (size == 0) return Result<K7File>::err("Empty K7 data");
+
+    while (pos < size) {
+        // Skip leader bytes (0x01)
+        while (pos < size && raw_data[pos] == 0x01) {
+            ++pos;
+        }
+
+        if (pos >= size) break;
+
+        // Expect sync byte 0x3C
+        if (raw_data[pos] != 0x3C) {
+            // Skip unknown bytes until we find a leader or sync
+            ++pos;
+            continue;
+        }
+        ++pos; // consume sync byte
+
+        // Need at least type + length bytes
+        if (pos + 2 > size) {
+            return Result<K7File>::err("Truncated block at offset " + std::to_string(pos));
+        }
+
+        K7Block block{};
+        block.type = raw_data[pos++];
+        uint8_t length = raw_data[pos++];
+
+        // Need length bytes + 1 checksum byte
+        if (pos + length + 1 > size) {
+            return Result<K7File>::err("Truncated block data at offset " + std::to_string(pos));
+        }
+
+        block.data.assign(raw_data.begin() + pos, raw_data.begin() + pos + length);
+        pos += length;
+
+        block.checksum = raw_data[pos++];
+
+        // Validate checksum: sum of type + length + all data bytes, & 0xFF
+        uint8_t computed = block.type + length;
+        for (uint8_t b : block.data) {
+            computed += b;
+        }
+        computed &= 0xFF;
+
+        if (computed != block.checksum) {
+            return Result<K7File>::err(
+                "Checksum mismatch in block at offset " + std::to_string(pos) +
+                ": expected 0x" + std::to_string(block.checksum) +
+                ", got 0x" + std::to_string(computed));
+        }
+
+        // Parse header block metadata
+        if (block.type == 0x00 && block.data.size() >= 14) {
+            // Filename: first 8 bytes, trim trailing spaces
+            file.filename = std::string(block.data.begin(), block.data.begin() + 8);
+            while (!file.filename.empty() && file.filename.back() == ' ') {
+                file.filename.pop_back();
+            }
+            file.file_type = block.data[8];
+            file.mode = block.data[9];
+            file.start_address = (static_cast<uint16_t>(block.data[10]) << 8) | block.data[11];
+            file.exec_address = (static_cast<uint16_t>(block.data[12]) << 8) | block.data[13];
+        }
+
+        file.blocks.push_back(std::move(block));
+
+        // Stop after EOF block
+        if (file.blocks.back().type == 0xFF) break;
+    }
+
+    if (file.blocks.empty()) {
+        return Result<K7File>::err("No valid blocks found in K7 data");
+    }
+
+    return Result<K7File>::ok(std::move(file));
+}
 
 CassetteState CassetteInterface::get_state() const { return state_; }
 void CassetteInterface::set_state(const CassetteState& state) { state_ = state; }
