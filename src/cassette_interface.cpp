@@ -35,8 +35,15 @@ Result<void> CassetteInterface::load_k7(const std::string& path) {
 Result<void> CassetteInterface::save_k7(const std::string& path) {
     std::ofstream file(path, std::ios::binary);
     if (!file) return Result<void>::err("Cannot write K7 file: " + path);
-    file.write(reinterpret_cast<const char*>(state_.record_buffer.data()),
-               state_.record_buffer.size());
+
+    // If we have parsed data, serialize from structured blocks
+    // Otherwise fall back to raw record buffer
+    const auto& data = parsed_file_.blocks.empty()
+        ? state_.record_buffer
+        : serialize_k7(parsed_file_);
+
+    file.write(reinterpret_cast<const char*>(data.data()),
+               static_cast<std::streamsize>(data.size()));
     return Result<void>::ok();
 }
 
@@ -195,6 +202,40 @@ Result<K7File> CassetteInterface::parse_k7(const std::vector<uint8_t>& raw_data)
     }
 
     return Result<K7File>::ok(std::move(file));
+}
+
+std::vector<uint8_t> CassetteInterface::serialize_k7(const K7File& file) {
+    std::vector<uint8_t> out;
+
+    for (const auto& block : file.blocks) {
+        // Leader: 16 bytes of 0x01
+        for (int i = 0; i < 16; ++i) {
+            out.push_back(0x01);
+        }
+
+        // Sync byte
+        out.push_back(0x3C);
+
+        // Block type
+        out.push_back(block.type);
+
+        // Length
+        auto length = static_cast<uint8_t>(block.data.size());
+        out.push_back(length);
+
+        // Data payload
+        out.insert(out.end(), block.data.begin(), block.data.end());
+
+        // Checksum: sum of type + length + all data bytes, & 0xFF
+        uint8_t checksum = block.type + length;
+        for (uint8_t b : block.data) {
+            checksum += b;
+        }
+        checksum &= 0xFF;
+        out.push_back(checksum);
+    }
+
+    return out;
 }
 
 CassetteState CassetteInterface::get_state() const { return state_; }

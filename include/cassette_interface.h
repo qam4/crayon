@@ -64,8 +64,9 @@ public:
     void set_load_mode(CassetteLoadMode mode);
     CassetteLoadMode get_load_mode() const;
 
-    // K7 format parsing
+    // K7 format parsing and serialization
     Result<K7File> parse_k7(const std::vector<uint8_t>& raw_data);
+    std::vector<uint8_t> serialize_k7(const K7File& file);
 
     bool has_data() const;
     const K7File& get_parsed_file() const;
