@@ -73,6 +73,7 @@ private:
     FrontendConfig config_;
     bool running_ = false;
     bool paused_ = false;
+    bool audio_muted_ = false;
     uint32_t frame_count_ = 0;
     uint32_t frame_limit_ = 0;
     float current_fps_ = 0.0f;

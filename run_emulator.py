@@ -5,7 +5,6 @@ Unified cross-platform script for running the emulator in different modes.
 """
 
 import argparse
-import os
 import platform
 import subprocess
 import sys
@@ -92,6 +91,14 @@ def run_headless_mode(exe_path, args, extra_args):
         cmd.extend(["--cartridge", args.cartridge])
     if args.cassette:
         cmd.extend(["--cassette", args.cassette])
+    if args.trace:
+        cmd.extend(["--trace", args.trace])
+    if args.type:
+        cmd.extend(["--type", args.type])
+    if args.type_file:
+        cmd.extend(["--type-file", args.type_file])
+    if args.type_delay is not None:
+        cmd.extend(["--type-delay", str(args.type_delay)])
 
     # Auto-screenshot at end of run
     screenshot_path = args.screenshot or f"screenshots/frame_{frames}.png"
@@ -120,6 +127,7 @@ Examples:
   %(prog)s headless                 # Headless mode, 200 frames, auto-screenshot
   %(prog)s headless --frames 500    # Headless mode, 500 frames
   %(prog)s sdl --cassette "roms/Yeti (1984) (Loriciels).k7"  # Load a K7 cassette
+  %(prog)s headless --cassette "roms/Yeti.k7" --type 'LOADM"",,R\\n' --trace debug/trace.txt
         """
     )
 
@@ -188,6 +196,31 @@ Examples:
         "--debugger",
         action="store_true",
         help="Enable debugger (F5 to toggle)"
+    )
+
+    parser.add_argument(
+        "--trace",
+        default=None,
+        help="Dump per-frame trace to file (headless mode)"
+    )
+
+    parser.add_argument(
+        "--type",
+        default=None,
+        help="Inject keystrokes in headless mode (use \\n for ENTER)"
+    )
+
+    parser.add_argument(
+        "--type-file",
+        default=None,
+        help="Read keystrokes from file (avoids shell quoting issues)"
+    )
+
+    parser.add_argument(
+        "--type-delay",
+        type=int,
+        default=None,
+        help="Frames to wait before typing (default 60)"
     )
 
     args, extra_args = parser.parse_known_args()

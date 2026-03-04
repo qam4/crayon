@@ -69,6 +69,8 @@ public:
     AudioSystem& get_audio() { return audio_; }
     MasterClock& get_master_clock() { return master_clock_; }
     CassetteInterface& get_cassette() { return cassette_; }
+    void play_cassette() { cassette_.play(master_clock_.get_cycle_count()); }
+    void rewind_cassette() { cassette_.rewind(master_clock_.get_cycle_count()); }
     LightPen& get_light_pen() { return light_pen_; }
 
     // State access

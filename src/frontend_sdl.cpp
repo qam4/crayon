@@ -9,6 +9,8 @@
 #include "ui/save_state_manager.h"
 #include "ui/osd_renderer.h"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 
 namespace crayon {
 
@@ -48,14 +50,13 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
     save_state_manager_ = std::make_unique<SaveStateManagerUI>(
         emulator_.get(), renderer_, text_renderer_.get());
 
-    if (!config.basic_rom_path.empty()) emulator_->load_basic_rom(config.basic_rom_path);
-    if (!config.monitor_rom_path.empty()) emulator_->load_monitor_rom(config.monitor_rom_path);
-    if (!config.cartridge_path.empty()) emulator_->load_cartridge(config.cartridge_path);
+    if (!config.basic_rom_path.empty()) { emulator_->load_basic_rom(config.basic_rom_path); std::cout << "Loaded BASIC ROM: " << config.basic_rom_path << "\n"; }
+    if (!config.monitor_rom_path.empty()) { emulator_->load_monitor_rom(config.monitor_rom_path); std::cout << "Loaded Monitor ROM: " << config.monitor_rom_path << "\n"; }
+    if (!config.cartridge_path.empty()) { emulator_->load_cartridge(config.cartridge_path); std::cout << "Loaded cartridge: " << config.cartridge_path << "\n"; }
     if (!config.cassette_path.empty()) {
         auto result = emulator_->get_cassette().load_k7(config.cassette_path);
         if (result.is_err()) { std::cerr << "Failed to load K7: " << result.error << "\n"; return false; }
-        emulator_->get_cassette().play();
-        std::cout << "Cassette loaded: " << config.cassette_path << "\n";
+        std::cout << "Loaded cassette: " << config.cassette_path << "\n";
     }
 
     if (config.enable_debugger) {
@@ -106,11 +107,22 @@ bool SDLFrontend::is_running() const { return running_; }
 void SDLFrontend::render_frame() {
     if (!renderer_ || !texture_) return;
     
-    // Render emulator framebuffer
+    int window_width, window_height;
+    SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
+    static constexpr int STATUS_BAR_HEIGHT = 20;
+    int fb_height = window_height - STATUS_BAR_HEIGHT;
+    
+    // Render emulator framebuffer into top portion only
     const uint32* fb = emulator_->get_framebuffer();
     if (fb) SDL_UpdateTexture(texture_, nullptr, fb, DISPLAY_WIDTH * sizeof(uint32_t));
     SDL_RenderClear(renderer_);
-    SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
+    SDL_Rect fb_rect = {0, 0, window_width, fb_height};
+    SDL_RenderCopy(renderer_, texture_, nullptr, &fb_rect);
+    
+    // Draw status bar background
+    SDL_SetRenderDrawColor(renderer_, 24, 24, 32, 255);
+    SDL_Rect bar_rect = {0, fb_height, window_width, STATUS_BAR_HEIGHT};
+    SDL_RenderFillRect(renderer_, &bar_rect);
     
     // Render UI overlays (after emulator framebuffer)
     if (osd_renderer_) {
@@ -138,6 +150,54 @@ void SDLFrontend::render_frame() {
         progress_dialog_->render();
     }
     
+    // Render status bar at bottom
+    if (osd_renderer_) {
+        std::ostringstream status;
+
+        // FPS
+        std::ostringstream fps_ss;
+        fps_ss << std::fixed << std::setprecision(0) << current_fps_;
+        status << fps_ss.str() << " FPS";
+
+        // Cassette
+        auto cass = emulator_->get_cassette().get_state();
+        if (!cass.k7_data.empty()) {
+            int pct = static_cast<int>(cass.read_position * 100 / cass.k7_data.size());
+            status << "  |  K7: ";
+            if (cass.playing)
+                status << "Playing " << pct << "%";
+            else if (cass.recording)
+                status << "Rec";
+            else
+                status << "Stop " << pct << "%";
+        }
+
+        // Cartridge
+        if (!config_.cartridge_path.empty()) {
+            auto name = config_.cartridge_path.substr(
+                config_.cartridge_path.find_last_of("/\\") + 1);
+            status << "  |  Cart: " << name;
+        }
+
+        // Light pen
+        if (emulator_->get_light_pen().is_detected()) {
+            status << "  |  Pen";
+        }
+
+        // Debugger
+        if (debugger_) {
+            status << "  |  DBG";
+            if (debugger_->is_paused()) status << ":BRK";
+        }
+
+        // Audio
+        if (audio_muted_) {
+            status << "  |  MUTE";
+        }
+
+        osd_renderer_->render_status_bar(status.str());
+    }
+
     // Render pause indicator (persistent, not a timed notification)
     if (paused_ && osd_renderer_) {
         int window_width, window_height;
@@ -193,7 +253,7 @@ void SDLFrontend::process_input() {
                             // K7 cassette
                             auto result = emulator_->get_cassette().load_k7(selected);
                             if (result.is_ok()) {
-                                emulator_->get_cassette().play();
+                                emulator_->play_cassette();
                                 osd_renderer_->show_notification("K7 loaded: " + selected.substr(selected.find_last_of("/\\") + 1), 2000);
                             } else {
                                 osd_renderer_->show_notification("Failed to load K7", 2000);
@@ -267,7 +327,15 @@ void SDLFrontend::process_input() {
                         }
                         continue;
                     case SDLK_F6:
-                        handle_menu_action(crayon::MenuAction::LoadK7);
+                        if (emulator_->get_cassette().get_state().k7_data.empty()) {
+                            handle_menu_action(crayon::MenuAction::LoadK7);
+                        } else if (emulator_->get_cassette().is_playing()) {
+                            emulator_->get_cassette().stop();
+                            osd_renderer_->show_notification("K7: Stopped", 1500);
+                        } else {
+                            emulator_->play_cassette();
+                            osd_renderer_->show_notification("K7: Playing", 1500);
+                        }
                         continue;
                     case SDLK_F7:
                         handle_menu_action(crayon::MenuAction::Reset);
@@ -350,9 +418,10 @@ bool SDLFrontend::init_video() {
         return false;
     }
     int scale = config_.display_scale;
+    static constexpr int STATUS_BAR_HEIGHT = 20;
     window_ = SDL_CreateWindow("Crayon - Thomson MO5",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        DISPLAY_WIDTH * scale, DISPLAY_HEIGHT * scale,
+        DISPLAY_WIDTH * scale, DISPLAY_HEIGHT * scale + STATUS_BAR_HEIGHT,
         SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!window_) { std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << "\n"; return false; }
     renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);

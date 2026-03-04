@@ -103,9 +103,9 @@
     - All 18 existing tests pass
     - Visual confirmation: cursor visible in emulator window
 
-- [ ] 8. Fix Bug 2: K7 Loading — Fix play_start_cycle
+- [x] 8. Fix Bug 2: K7 Loading — Fix play_start_cycle
 
-  - [ ] 8.1 Update play() and rewind() signatures in cassette_interface
+  - [x] 8.1 Update play() and rewind() signatures in cassette_interface
     - In `include/cassette_interface.h`: change `play()` to `play(uint64_t current_master_cycle)` and `rewind()` to `rewind(uint64_t current_master_cycle)`
     - In `src/cassette_interface.cpp`: set `state_.play_start_cycle = current_master_cycle` in both methods instead of using `state_.current_cycle`
     - _Bug_Condition: play_start_cycle set from stale current_cycle, not master clock_
@@ -113,13 +113,13 @@
     - _Preservation: non-playing cassette behavior unchanged, $A7C0 bits 0-6 unaffected_
     - _Requirements: 2.3, 2.4, 2.5, 3.4, 3.5, 3.6_
 
-  - [ ] 8.2 Update all call sites for play() and rewind()
+  - [x] 8.2 Update all call sites for play() and rewind()
     - In `src/frontend_sdl.cpp`: pass `emulator_->get_master_clock().get_cycle_count()` (or add convenience method to EmulatorCore)
     - In `src/emulator_core.cpp`: update any internal calls to pass master clock cycle
     - Consider adding `EmulatorCore::play_cassette()` and `EmulatorCore::rewind_cassette()` convenience methods
     - _Requirements: 2.3, 2.5_
 
-  - [ ] 8.3 Verify K7 bit timing exploration test now passes
+  - [x] 8.3 Verify K7 bit timing exploration test now passes
     - **Property 3: Expected Behavior** - K7 Cassette Bit Timing Accuracy
     - **IMPORTANT**: Re-run the SAME test from task 3 - do NOT write a new test
     - The test from task 3 encodes the expected behavior (play_start_cycle matches master clock, bits at correct timing)
@@ -128,7 +128,7 @@
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed, bit timing accurate)
     - _Requirements: 2.3, 2.4, 2.5_
 
-  - [ ] 8.4 Verify cassette preservation tests still pass
+  - [x] 8.4 Verify cassette preservation tests still pass
     - **Property 4: Preservation** - Cassette Interface Non-Playing Behavior
     - **IMPORTANT**: Re-run the SAME tests from task 4 - do NOT write new tests
     - Run preservation tests from step 4

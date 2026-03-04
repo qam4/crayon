@@ -34,6 +34,10 @@ public:
 
     void set_frame_limit(int frames) { frame_limit_ = frames; }
     void set_trace_path(const std::string& path) { trace_path_ = path; }
+    void set_type_string(const std::string& text, int delay_frames) {
+        type_text_ = text;
+        type_delay_frames_ = delay_frames;
+    }
 
 private:
     FrontendConfig config_;
@@ -45,6 +49,10 @@ private:
     int frame_count_ = 0;
     int frame_limit_ = 0;
     std::string trace_path_;
+    std::string type_text_;
+    int type_delay_frames_ = 60;
+    size_t type_index_ = 0;
+    int type_key_hold_frames_ = 0;  // frames remaining to hold current key
 };
 
 } // namespace crayon

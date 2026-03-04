@@ -28,9 +28,9 @@ public:
     Result<void> save_k7(const std::string& path);
 
     void reset();
-    void play();
+    void play(uint64_t current_master_cycle);
     void stop();
-    void rewind();
+    void rewind(uint64_t current_master_cycle);
 
     bool read_data_bit();
     void write_data_bit(bool bit);

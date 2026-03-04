@@ -6,7 +6,12 @@ namespace crayon {
 
 CassetteInterface::CassetteInterface() { reset(); }
 
-void CassetteInterface::reset() { state_ = CassetteState{}; }
+void CassetteInterface::reset() {
+    // Preserve loaded K7 data across reset
+    auto saved_data = std::move(state_.k7_data);
+    state_ = CassetteState{};
+    state_.k7_data = std::move(saved_data);
+}
 
 Result<void> CassetteInterface::load_k7(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
@@ -25,17 +30,17 @@ Result<void> CassetteInterface::save_k7(const std::string& path) {
     return Result<void>::ok();
 }
 
-void CassetteInterface::play() {
+void CassetteInterface::play(uint64_t current_master_cycle) {
     state_.playing = true;
     state_.recording = false;
-    state_.play_start_cycle = state_.current_cycle;
+    state_.play_start_cycle = current_master_cycle;
 }
 
 void CassetteInterface::stop() { state_.playing = false; state_.recording = false; }
-void CassetteInterface::rewind() {
+void CassetteInterface::rewind(uint64_t current_master_cycle) {
     state_.read_position = 0;
     state_.bit_position = 0;
-    state_.play_start_cycle = state_.current_cycle;
+    state_.play_start_cycle = current_master_cycle;
 }
 
 void CassetteInterface::update_cycle(uint64_t cycle) {
@@ -43,6 +48,13 @@ void CassetteInterface::update_cycle(uint64_t cycle) {
 }
 
 bool CassetteInterface::read_data_bit() {
+    // Auto-play: if ROM reads cassette while tape is loaded but not playing, start it
+    if (!state_.playing && !state_.k7_data.empty()) {
+        state_.playing = true;
+        state_.recording = false;
+        state_.play_start_cycle = state_.current_cycle;
+    }
+
     if (!state_.playing || state_.k7_data.empty()) return false;
 
     // K7 format: 1200 baud = 833.33 CPU cycles per bit at 1 MHz

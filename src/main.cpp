@@ -1,5 +1,6 @@
 #include "frontend.h"
 #include "frontend_headless.h"
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <memory>
@@ -23,6 +24,9 @@ void print_usage(const char* program) {
               << "  --scale <n>        Display scale (1-4, default 2)\n"
               << "  --debugger         Enable debugger (F5 to toggle)\n"
               << "  --trace <path>     Dump per-frame trace to file (headless)\n"
+              << "  --type <text>      Inject keystrokes in headless mode (use \\n for ENTER)\n"
+              << "  --type-file <path> Read keystrokes from file (avoids shell quoting issues)\n"
+              << "  --type-delay <n>   Frames to wait before typing (default 60)\n"
               << "  --help             Show this help\n";
 }
 
@@ -36,6 +40,8 @@ int main(int argc, char* argv[]) {
     int frame_limit = 0;
     std::string screenshot_path;
     std::string trace_path;
+    std::string type_text;
+    int type_delay = 60;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -50,6 +56,26 @@ int main(int argc, char* argv[]) {
         else if (arg == "--screenshot" && i + 1 < argc) screenshot_path = argv[++i];
         else if (arg == "--debugger") config.enable_debugger = true;
         else if (arg == "--trace" && i + 1 < argc) trace_path = argv[++i];
+        else if (arg == "--type" && i + 1 < argc) {
+            type_text = argv[++i];
+            // Replace literal \n with newline
+            std::string processed;
+            for (size_t j = 0; j < type_text.size(); ++j) {
+                if (j + 1 < type_text.size() && type_text[j] == '\\' && type_text[j+1] == 'n') {
+                    processed += '\n';
+                    ++j;
+                } else {
+                    processed += type_text[j];
+                }
+            }
+            type_text = processed;
+        }
+        else if (arg == "--type-file" && i + 1 < argc) {
+            std::ifstream tf(argv[++i]);
+            if (tf) { type_text.assign((std::istreambuf_iterator<char>(tf)), {}); }
+            else { std::cerr << "Cannot open type-file: " << argv[i] << "\n"; return 1; }
+        }
+        else if (arg == "--type-delay" && i + 1 < argc) type_delay = std::stoi(argv[++i]);
         else { std::cerr << "Unknown option: " << arg << "\n"; print_usage(argv[0]); return 1; }
     }
 
@@ -59,6 +85,7 @@ int main(int argc, char* argv[]) {
         auto hf = std::make_unique<crayon::HeadlessFrontend>();
         if (frame_limit > 0) hf->set_frame_limit(frame_limit);
         if (!trace_path.empty()) hf->set_trace_path(trace_path);
+        if (!type_text.empty()) hf->set_type_string(type_text, type_delay);
         frontend = std::move(hf);
     } else {
 #ifdef ENABLE_SDL
