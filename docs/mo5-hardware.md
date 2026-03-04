@@ -366,17 +366,100 @@ Marks the end of the file. May have zero-length data.
 
 ### ROM Cassette Routines
 
-The Monitor ROM and BASIC ROM cooperate to handle cassette I/O:
+The Monitor ROM contains the low-level cassette I/O routines. These were identified
+by disassembling `roms/mo5.rom` (see `debug/monitor_rom_full.asm`). [DC]
 
-- The SWI instruction is used as a system call mechanism. The byte following SWI
-  is the function number. The SWI handler at $F63E does `JMP [$205E]`, which
-  redirects through a RAM vector to the BASIC ROM's SWI dispatcher.
-- BASIC's `LOAD""` command eventually calls the Monitor ROM's cassette read routine
-  to read bytes one at a time from the tape.
-- The cassette read routine polls $A7C0 bit 7 in a tight loop, timing the transitions
-  to decode 1200 baud data.
-- The exact entry point and register conventions of the cassette byte-read routine
-  need to be identified via disassembly (see task 11.6 in the implementation plan).
+#### SWI Dispatch Mechanism
+
+The SWI instruction is used as a system call. The byte following SWI is the function
+number. The SWI vector ($FFFA) points to $F63E which does `JMP [$205E]`. During boot,
+$205E is set to point to the BASIC ROM's SWI dispatcher, which reads the function
+number from the stack, looks it up in the dispatch table pointed to by $206A (default:
+$F0B3 in Monitor ROM), and jumps to the target routine with U=$A7C0.
+
+#### Key Cassette Routines (Monitor ROM)
+
+| Address | Function | Description |
+|---------|----------|-------------|
+| `$F168` | Read one bit | Polls $A7C0 bit 7 (via `,U`), XORs with polarity byte at $2044, waits for transition. Delay loop at $F1A2. Result bit accumulated in $2045 via ROL. |
+| `$F181` | Read one byte | Calls $F168 eight times (B=8 loop). Returns byte in A register, also stored at $2045. |
+| `$F0FF` | Block read/write | Entry point for block-level cassette I/O. Disables interrupts (ORCC #$D0). If reading (TST 3,S != 0): searches for leader (0x01 bytes), sync (0x3C, 0x5A), then reads block type, length, and data bytes via $F181. If writing: outputs leader, sync, and block data via $F1AF. |
+| `$F1AF` | Write one byte | Writes byte from A to cassette. Toggles $A7C0 bit 6 for each bit with timing delays. |
+| `$F1CB` | Toggle cassette out | XORs $A7C0 with $40 (toggles bit 6 = cassette data output). |
+
+#### Read-Byte Routine Detail ($F181)
+
+```asm
+F181  C6 08          LDB #$08        ; 8 bits per byte
+F183  8D E3          BSR $F168       ; read one bit
+F185  5A             DECB            ; decrement bit counter
+F186  26 FB          BNE $F183       ; loop until 8 bits read
+F188  96 45          LDA $45         ; load accumulated byte
+F18A  39             RTS             ; return with byte in A
+```
+
+Entry conditions: U = $A7C0 (gate array base), polarity in $2044.
+Exit conditions: A = byte read, $2045 = same byte. B = 0.
+
+#### Read-Bit Routine Detail ($F168)
+
+```asm
+F168  A6 C4          LDA ,U          ; read $A7C0 (gate array)
+F16A  98 44          EORA $44        ; XOR with polarity ($2044)
+F16C  2A FA          BPL $F168       ; loop until bit 7 changes
+F16E  8E 00 41       LDX #$0041     ; delay count
+F171  8D 2F          BSR $F1A2       ; delay loop (sample at mid-bit)
+F173  A6 C4          LDA ,U          ; re-read $A7C0
+F175  98 44          EORA $44        ; XOR with polarity
+F177  2A 04          BPL $F17D       ; if bit 7 still same → data bit = 1
+F179  03 44          COM $44         ; flip polarity (transition detected)
+F17B  4F             CLRA            ; data bit = 0
+F17C  21 43          BRN $F1C1       ; (skip, never branches — padding)
+F17D  ...                            ; (falls through)
+F17E  09 45          ROL $45         ; rotate bit into accumulator
+F180  39             RTS
+```
+
+The routine detects transitions in the cassette signal. A short period between
+transitions = bit 1, a long period = bit 0. The polarity byte at $2044 tracks
+the current expected signal level.
+
+#### Block Read Flow ($F0FF, reading path)
+
+```
+$F0FF: ORCC #$D0           ; disable IRQ and FIRQ
+$F105: Read $A7C0, init polarity ($2044 = $FF)
+$F10B: Read bits, wait for leader (0x01 bytes)
+$F110: Verify leader bytes (value = 0x01)
+$F118: Read bytes, skip remaining leader
+$F11E: Check for sync byte 0x3C
+$F122: Check for second sync byte 0x5A
+$F128: Read block type byte → store at 4,S
+$F12C: Read block length byte → store at ,Y+ and $2041
+$F134: Loop: read data bytes → store at ,Y+, accumulate checksum
+$F167: RTS
+```
+
+Note: The sync sequence is 0x3C 0x5A (not just 0x3C as in the K7 file format
+description). The second byte 0x5A acts as additional synchronization.
+
+#### Fast Loading Interception Point
+
+For fast loading (direct data injection), the recommended interception point is
+**$F181** (read-byte). When the CPU's PC reaches $F181:
+
+1. Read the next byte from the parsed K7 block data
+2. Store it in A register
+3. Store it at $2045 (zero-page, DP=$20)
+4. Set B = 0 (the routine normally exits with B=0)
+5. Set PC = $F18B (the instruction after RTS, i.e., skip the routine)
+
+This intercepts at the byte level, allowing the block-read routine at $F0FF to
+handle leader detection, sync bytes, and block framing naturally — only the
+slow bit-by-bit polling is bypassed.
+
+Alternative: intercept at $F0FF for block-level injection, but this requires
+reimplementing the block framing logic in the emulator.
 
 ---
 

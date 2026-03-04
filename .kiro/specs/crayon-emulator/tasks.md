@@ -303,18 +303,18 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Serialize K7 data, read position, bit position, playing/recording state, record buffer
     - Preserve K7 data across emulator reset
     - _Requirements: 10.13, 12.5_
-  - [ ] 11.4 Implement K7 file format parser (block-level)
+  - [x] 11.4 Implement K7 file format parser (block-level)
     - Parse raw K7 bytes into structured `K7File` with `K7Block` entries
     - Detect leader tones (repeated 0x01 bytes), sync byte (0x3C), block boundaries
     - Parse block type (0x00=header, 0x01=data, 0xFF=EOF), length, payload, checksum
     - Parse header block: filename, file type (BASIC/data/machine code), start/exec addresses
     - Validate checksums and return errors for malformed files
     - _Requirements: 10.6, 10.9_
-  - [ ] 11.5 Implement K7 file serializer
+  - [x] 11.5 Implement K7 file serializer
     - Serialize `K7File` back to raw bytes: leader + sync + blocks with checksums
     - Implement `save_k7()` using the serializer for SAVE command output
     - _Requirements: 10.7_
-  - [ ] 11.6 Disassemble Monitor ROM cassette read routine
+  - [x] 11.6 Disassemble Monitor ROM cassette read routine
     - Use `disasm_roms` to identify the Monitor ROM's cassette byte-read subroutine
     - Document the entry point address, register conventions (which register returns the byte, carry flag meaning), and return address
     - Document the LOAD/LOADM dispatch path: SWI → RAM vector $205E → BASIC handler → Monitor ROM cassette routine
