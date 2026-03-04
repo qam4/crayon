@@ -1,5 +1,6 @@
 #include "frontend_headless.h"
 #include "input_handler.h"
+#include "char_mapping.h"
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -9,67 +10,6 @@
 #include "stb_image_write.h"
 
 namespace crayon {
-
-// Map ASCII char to MO5Key + whether SHIFT is needed
-struct CharMapping {
-    MO5Key key;
-    bool shift;
-};
-
-static bool char_to_mo5(char c, CharMapping& out) {
-    switch (c) {
-        // Letters (MO5 boots in caps mode, no shift needed)
-        case 'A': case 'a': out = {MO5Key::Q, false}; return true;   // AZERTY: A is at Q position
-        case 'B': case 'b': out = {MO5Key::B, false}; return true;
-        case 'C': case 'c': out = {MO5Key::C, false}; return true;
-        case 'D': case 'd': out = {MO5Key::D, false}; return true;
-        case 'E': case 'e': out = {MO5Key::E, false}; return true;
-        case 'F': case 'f': out = {MO5Key::F, false}; return true;
-        case 'G': case 'g': out = {MO5Key::G, false}; return true;
-        case 'H': case 'h': out = {MO5Key::H, false}; return true;
-        case 'I': case 'i': out = {MO5Key::I, false}; return true;
-        case 'J': case 'j': out = {MO5Key::J, false}; return true;
-        case 'K': case 'k': out = {MO5Key::K, false}; return true;
-        case 'L': case 'l': out = {MO5Key::L, false}; return true;
-        case 'M': case 'm': out = {MO5Key::SLASH, false}; return true; // MO5: M is at scancode 0x1A
-        case 'N': case 'n': out = {MO5Key::N, false}; return true;
-        case 'O': case 'o': out = {MO5Key::O, false}; return true;
-        case 'P': case 'p': out = {MO5Key::P, false}; return true;
-        case 'Q': case 'q': out = {MO5Key::A, false}; return true;   // AZERTY: Q is at A position
-        case 'R': case 'r': out = {MO5Key::R, false}; return true;
-        case 'S': case 's': out = {MO5Key::S, false}; return true;
-        case 'T': case 't': out = {MO5Key::T, false}; return true;
-        case 'U': case 'u': out = {MO5Key::U, false}; return true;
-        case 'V': case 'v': out = {MO5Key::V, false}; return true;
-        case 'W': case 'w': out = {MO5Key::Z, false}; return true;   // AZERTY: W is at Z position
-        case 'X': case 'x': out = {MO5Key::X, false}; return true;
-        case 'Y': case 'y': out = {MO5Key::Y, false}; return true;
-        case 'Z': case 'z': out = {MO5Key::W, false}; return true;   // AZERTY: Z is at W position
-        // Digits (no shift in caps mode on MO5)
-        case '0': out = {MO5Key::Key0, false}; return true;
-        case '1': out = {MO5Key::Key1, false}; return true;
-        case '2': out = {MO5Key::Key2, false}; return true;
-        case '3': out = {MO5Key::Key3, false}; return true;
-        case '4': out = {MO5Key::Key4, false}; return true;
-        case '5': out = {MO5Key::Key5, false}; return true;
-        case '6': out = {MO5Key::Key6, false}; return true;
-        case '7': out = {MO5Key::Key7, false}; return true;
-        case '8': out = {MO5Key::Key8, false}; return true;
-        case '9': out = {MO5Key::Key9, false}; return true;
-        // Punctuation
-        case ' ':  out = {MO5Key::SPACE, false}; return true;
-        case '\n': out = {MO5Key::ENTER, false}; return true;
-        case ',':  out = {MO5Key::M, false}; return true;      // MO5 scancode 0x08 produces ','
-        case '.':  out = {MO5Key::COMMA, false}; return true;   // MO5 scancode 0x10 produces '.'
-        case '"':  out = {MO5Key::Key2, true}; return true;     // SHIFT+2 = " on AZERTY
-        case '-':  out = {MO5Key::MINUS, false}; return true;
-        case '+':  out = {MO5Key::PLUS, false}; return true;
-        case '*':  out = {MO5Key::STAR, false}; return true;
-        case '/':  out = {MO5Key::SLASH, true}; return true;    // SHIFT+M position = /
-        case '@':  out = {MO5Key::AT, false}; return true;
-        default: return false;
-    }
-}
 
 HeadlessFrontend::HeadlessFrontend() = default;
 HeadlessFrontend::~HeadlessFrontend() { shutdown(); }
@@ -102,7 +42,7 @@ bool HeadlessFrontend::initialize(const FrontendConfig& config) {
         std::cout << "Loaded cassette: " << config.cassette_path << "\n";
     }
     if (config.k7_mode == "slow") {
-        emulator_->get_cassette().set_load_mode(crayon::CassetteLoadMode::Slow);
+        emulator_->get_cassette().set_load_mode(CassetteLoadMode::Slow);
         std::cout << "K7 load mode: slow (1200 baud)\n";
     } else {
         std::cout << "K7 load mode: fast (direct injection)\n";
@@ -151,20 +91,33 @@ void HeadlessFrontend::run() {
                 // In gap between keys
                 type_key_hold_frames_++;
             } else if (type_index_ < type_text_.size()) {
-                // Press next key
-                CharMapping mapping;
-                if (char_to_mo5(type_text_[type_index_], mapping)) {
-                    if (mapping.shift) input.set_key_state(MO5Key::SHIFT, true);
-                    input.set_key_state(mapping.key, true);
-                    type_key_hold_frames_ = 3;
-                    if (trace_out.is_open()) {
-                        trace_out << "  [type] char='" << type_text_[type_index_]
-                                  << "' key=0x" << std::hex << (int)mapping.key
-                                  << (mapping.shift ? " +SHIFT" : "") << "\n";
-                    }
-                } else {
-                    // Unknown char, skip
+                // Check for \w wait escape: \wNNN pauses for NNN frames
+                if (type_text_[type_index_] == '\x17') {  // \w marker (ETB control char)
                     type_index_++;
+                    int wait = 0;
+                    while (type_index_ < type_text_.size() &&
+                           type_text_[type_index_] >= '0' && type_text_[type_index_] <= '9') {
+                        wait = wait * 10 + (type_text_[type_index_] - '0');
+                        type_index_++;
+                    }
+                    type_key_hold_frames_ = -(wait > 0 ? wait : 60);
+                }
+                // Press next key
+                else {
+                    CharMapping mapping;
+                    if (char_to_mo5(type_text_[type_index_], mapping)) {
+                        if (mapping.shift) input.set_key_state(MO5Key::SHIFT, true);
+                        input.set_key_state(mapping.key, true);
+                        type_key_hold_frames_ = 3;
+                        if (trace_out.is_open()) {
+                            trace_out << "  [type] char='" << type_text_[type_index_]
+                                      << "' key=0x" << std::hex << (int)mapping.key
+                                      << (mapping.shift ? " +SHIFT" : "") << "\n";
+                        }
+                    } else {
+                        // Unknown char, skip
+                        type_index_++;
+                    }
                 }
             }
         }

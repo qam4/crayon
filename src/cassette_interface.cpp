@@ -26,6 +26,8 @@ Result<void> CassetteInterface::load_k7(const std::string& path) {
         parsed_file_ = std::move(*result.value);
         current_block_ = 0;
         block_byte_pos_ = 0;
+        fast_read_pos_ = 0;
+        fast_bit_pos_ = 0;
     }
     // Even if parsing fails, keep raw data for slow mode playback
 
@@ -58,6 +60,8 @@ void CassetteInterface::rewind(uint64_t current_master_cycle) {
     state_.read_position = 0;
     state_.bit_position = 0;
     state_.play_start_cycle = current_master_cycle;
+    fast_read_pos_ = 0;
+    fast_bit_pos_ = 0;
 }
 
 void CassetteInterface::update_cycle(uint64_t cycle) {
@@ -121,6 +125,32 @@ CassetteLoadMode CassetteInterface::get_load_mode() const { return load_mode_; }
 
 bool CassetteInterface::has_data() const { return !parsed_file_.blocks.empty(); }
 const K7File& CassetteInterface::get_parsed_file() const { return parsed_file_; }
+
+bool CassetteInterface::try_fast_read_byte(uint8_t& out_byte) {
+    if (state_.k7_data.empty()) return false;
+    if (fast_read_pos_ >= state_.k7_data.size()) return false;
+
+    out_byte = state_.k7_data[fast_read_pos_++];
+    return true;
+}
+
+const K7Block* CassetteInterface::try_fast_read_block() {
+    if (current_block_ >= parsed_file_.blocks.size()) return nullptr;
+    return &parsed_file_.blocks[current_block_++];
+}
+
+bool CassetteInterface::try_fast_read_bit(bool& out_bit) {
+    if (state_.k7_data.empty()) return false;
+    if (fast_read_pos_ >= state_.k7_data.size()) return false;
+
+    out_bit = (state_.k7_data[fast_read_pos_] >> (7 - fast_bit_pos_)) & 1;
+    fast_bit_pos_++;
+    if (fast_bit_pos_ >= 8) {
+        fast_bit_pos_ = 0;
+        fast_read_pos_++;
+    }
+    return true;
+}
 
 Result<K7File> CassetteInterface::parse_k7(const std::vector<uint8_t>& raw_data) {
     K7File file{};

@@ -1,4 +1,5 @@
 #include "frontend_sdl.h"
+#include "char_mapping.h"
 #include "ui/text_renderer.h"
 #include "ui/menu_system.h"
 #include "ui/config_manager.h"
@@ -90,8 +91,22 @@ void SDLFrontend::shutdown() {
 }
 
 void SDLFrontend::run() {
+    uint32_t fps_last_time = SDL_GetTicks();
+    uint32_t fps_frame_count = 0;
+
     while (running_) {
         if (frame_limit_ > 0 && frame_count_ >= frame_limit_) { running_ = false; break; }
+
+        // FPS calculation
+        fps_frame_count++;
+        uint32_t now = SDL_GetTicks();
+        uint32_t elapsed = now - fps_last_time;
+        if (elapsed >= 1000) {
+            current_fps_ = fps_frame_count * 1000.0f / elapsed;
+            fps_frame_count = 0;
+            fps_last_time = now;
+        }
+
         process_input();
         // Sync pause state from debugger (ImGui buttons set debugger state directly)
         if (debugger_) {
@@ -101,6 +116,41 @@ void SDLFrontend::run() {
                 emulator_->set_paused(paused_);
             }
         }
+        // Keystroke injection from --type
+        if (!type_text_.empty() && frame_count_ >= static_cast<uint32_t>(type_delay_frames_) && type_index_ <= type_text_.size()) {
+            auto& input = emulator_->get_input_handler();
+            if (type_key_hold_frames_ > 0) {
+                type_key_hold_frames_--;
+                if (type_key_hold_frames_ == 0) {
+                    input.reset();
+                    type_index_++;
+                    type_key_hold_frames_ = -3; // gap frames
+                }
+            } else if (type_key_hold_frames_ < 0) {
+                type_key_hold_frames_++;
+            } else if (type_index_ < type_text_.size()) {
+                if (type_text_[type_index_] == '\x17') {  // \w wait marker
+                    type_index_++;
+                    int wait = 0;
+                    while (type_index_ < type_text_.size() &&
+                           type_text_[type_index_] >= '0' && type_text_[type_index_] <= '9') {
+                        wait = wait * 10 + (type_text_[type_index_] - '0');
+                        type_index_++;
+                    }
+                    type_key_hold_frames_ = -(wait > 0 ? wait : 60);
+                } else {
+                    CharMapping mapping;
+                    if (char_to_mo5(type_text_[type_index_], mapping)) {
+                        if (mapping.shift) input.set_key_state(MO5Key::SHIFT, true);
+                        input.set_key_state(mapping.key, true);
+                        type_key_hold_frames_ = 3;
+                    } else {
+                        type_index_++; // skip unknown char
+                    }
+                }
+            }
+        }
+
         if (!paused_) emulator_->run_frame();
         render_frame();
         process_audio();
@@ -132,7 +182,6 @@ void SDLFrontend::render_frame() {
     
     // Render UI overlays (after emulator framebuffer)
     if (osd_renderer_) {
-        osd_renderer_->render_fps(current_fps_);
         osd_renderer_->render_notification();
     }
     

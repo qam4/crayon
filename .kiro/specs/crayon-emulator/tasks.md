@@ -321,7 +321,7 @@ Build a Thomson MO5 emulator by forking the Videopac/Odyssey 2 codebase, replaci
     - Store findings in `docs/mo5-hardware.md` section 9 (Cassette Interface)
     - This is a prerequisite for fast loading — we need to know exactly where to intercept
     - _Requirements: 10.3_
-  - [ ] 11.7 Implement fast loading mode (direct data injection)
+  - [x] 11.7 Implement fast loading mode (direct data injection)
     - In `EmulatorCore::run_frame()`, after each instruction, check if PC matches the cassette byte-read entry point
     - When matched and `load_mode_ == Fast`: call `try_fast_read_byte()` to get next byte from parsed K7 data, place in CPU register, set flags, advance PC past the routine
     - For LOADM: implement `try_fast_load()` that parses all K7 blocks and writes data directly to target RAM addresses from the header block

@@ -46,6 +46,10 @@ public:
     void dump_framebuffer(const std::string& filename) override;
 
     void set_frame_limit(int frames) { frame_limit_ = frames; }
+    void set_type_string(const std::string& text, int delay_frames) {
+        type_text_ = text;
+        type_delay_frames_ = delay_frames;
+    }
 
 private:
     SDL_Window* window_ = nullptr;
@@ -77,6 +81,12 @@ private:
     uint32_t frame_count_ = 0;
     uint32_t frame_limit_ = 0;
     float current_fps_ = 0.0f;
+
+    // Auto-type support
+    std::string type_text_;
+    int type_delay_frames_ = 60;
+    size_t type_index_ = 0;
+    int type_key_hold_frames_ = 0;
 
     bool init_video();
     bool init_audio();

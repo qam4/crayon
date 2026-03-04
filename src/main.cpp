@@ -24,7 +24,7 @@ void print_usage(const char* program) {
               << "  --scale <n>        Display scale (1-4, default 2)\n"
               << "  --debugger         Enable debugger (F5 to toggle)\n"
               << "  --trace <path>     Dump per-frame trace to file (headless)\n"
-              << "  --type <text>      Inject keystrokes in headless mode (use \\n for ENTER)\n"
+              << "  --type <text>      Inject keystrokes (use \\n for ENTER, \\wNNN for wait)\n"
               << "  --type-file <path> Read keystrokes from file (avoids shell quoting issues)\n"
               << "  --type-delay <n>   Frames to wait before typing (default 60)\n"
               << "  --k7-mode <mode>   Cassette load mode: fast (default) or slow\n"
@@ -59,11 +59,14 @@ int main(int argc, char* argv[]) {
         else if (arg == "--trace" && i + 1 < argc) trace_path = argv[++i];
         else if (arg == "--type" && i + 1 < argc) {
             type_text = argv[++i];
-            // Replace literal \n with newline
+            // Replace literal \n with newline, \wNNN with ETB+NNN (wait marker)
             std::string processed;
             for (size_t j = 0; j < type_text.size(); ++j) {
                 if (j + 1 < type_text.size() && type_text[j] == '\\' && type_text[j+1] == 'n') {
                     processed += '\n';
+                    ++j;
+                } else if (j + 1 < type_text.size() && type_text[j] == '\\' && type_text[j+1] == 'w') {
+                    processed += '\x17';  // ETB = wait marker
                     ++j;
                 } else {
                     processed += type_text[j];
@@ -73,7 +76,20 @@ int main(int argc, char* argv[]) {
         }
         else if (arg == "--type-file" && i + 1 < argc) {
             std::ifstream tf(argv[++i]);
-            if (tf) { type_text.assign((std::istreambuf_iterator<char>(tf)), {}); }
+            if (tf) {
+                std::string raw((std::istreambuf_iterator<char>(tf)), {});
+                // Process escape sequences: \wNNN → ETB+NNN
+                std::string processed;
+                for (size_t j = 0; j < raw.size(); ++j) {
+                    if (j + 1 < raw.size() && raw[j] == '\\' && raw[j+1] == 'w') {
+                        processed += '\x17';
+                        ++j;
+                    } else {
+                        processed += raw[j];
+                    }
+                }
+                type_text = processed;
+            }
             else { std::cerr << "Cannot open type-file: " << argv[i] << "\n"; return 1; }
         }
         else if (arg == "--type-delay" && i + 1 < argc) type_delay = std::stoi(argv[++i]);
@@ -93,6 +109,7 @@ int main(int argc, char* argv[]) {
 #ifdef ENABLE_SDL
         auto sf = std::make_unique<crayon::SDLFrontend>();
         if (frame_limit > 0) sf->set_frame_limit(frame_limit);
+        if (!type_text.empty()) sf->set_type_string(type_text, type_delay);
         frontend = std::move(sf);
 #else
         std::cerr << "SDL not available. Use --headless or rebuild with SDL2.\n";

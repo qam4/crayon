@@ -58,6 +58,16 @@ public:
     void write_data_bit(bool bit);
     void update_cycle(uint64_t cycle);  // Call each instruction to track timing
 
+    // Fast mode: direct byte injection at $F181 interception point
+    bool try_fast_read_byte(uint8_t& out_byte);
+
+    // Fast mode: block-level injection at $F0FF interception point
+    const K7Block* try_fast_read_block();
+
+    // Fast mode: single-bit injection at $F168 interception point
+    // Returns the next bit from the raw K7 stream (MSB first within each byte)
+    bool try_fast_read_bit(bool& out_bit);
+
     bool is_playing() const;
     bool is_recording() const;
 
@@ -80,6 +90,8 @@ private:
     CassetteLoadMode load_mode_ = CassetteLoadMode::Fast;
     size_t current_block_ = 0;
     size_t block_byte_pos_ = 0;
+    size_t fast_read_pos_ = 0;  // Position in raw k7_data for fast byte injection
+    uint8_t fast_bit_pos_ = 0;  // Bit position within current byte (0-7, MSB first)
 };
 
 } // namespace crayon

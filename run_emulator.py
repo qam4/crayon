@@ -70,6 +70,12 @@ def run_sdl_mode(exe_path, args, extra_args):
         cmd.append("--debugger")
     if args.k7_mode:
         cmd.extend(["--k7-mode", args.k7_mode])
+    if args.type:
+        cmd.extend(["--type", args.type])
+    if args.type_file:
+        cmd.extend(["--type-file", args.type_file])
+    if args.type_delay is not None:
+        cmd.extend(["--type-delay", str(args.type_delay)])
     cmd.extend(extra_args)
 
     print("Command:", " ".join(cmd))

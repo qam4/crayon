@@ -443,23 +443,39 @@ $F167: RTS
 Note: The sync sequence is 0x3C 0x5A (not just 0x3C as in the K7 file format
 description). The second byte 0x5A acts as additional synchronization.
 
-#### Fast Loading Interception Point
+#### Fast Loading Implementation
 
-For fast loading (direct data injection), the recommended interception point is
-**$F181** (read-byte). When the CPU's PC reaches $F181:
+For fast loading (direct data injection), the emulator intercepts at **two levels**:
 
-1. Read the next byte from the parsed K7 block data
-2. Store it in A register
-3. Store it at $2045 (zero-page, DP=$20)
-4. Set B = 0 (the routine normally exits with B=0)
-5. Set PC = $F18B (the instruction after RTS, i.e., skip the routine)
+**Level 1: Leader search at $F10B**
 
-This intercepts at the byte level, allowing the block-read routine at $F0FF to
-handle leader detection, sync bytes, and block framing naturally — only the
-slow bit-by-bit polling is bypassed.
+The block-read routine at $F0FF starts by calling $F168 bit-by-bit to find leader
+bytes (0x01). This bit-level polling is extremely slow. The emulator intercepts at
+$F10B and:
 
-Alternative: intercept at $F0FF for block-level injection, but this requires
-reimplementing the block framing logic in the emulator.
+1. Consumes raw K7 bytes until finding a 0x01 leader byte
+2. Sets PC = $F118 (the byte-level leader skip loop)
+
+This skips the slow bit-level leader search while letting the ROM's byte-level
+leader/sync detection run naturally.
+
+**Level 2: Read-byte at $F181**
+
+Once the ROM is reading bytes (leader skip, sync detection, block data), the
+emulator intercepts at $F181 and:
+
+1. Reads the next byte from the raw K7 stream
+2. Stores it in A register
+3. Stores it at $2045 (zero-page, DP=$20)
+4. Sets B = 0 (the routine normally exits with B=0)
+5. Sets PC = $F18A (the RTS instruction, NOT $F18B past it)
+
+**Critical**: PC must be set to $F18A (the RTS) not $F18B, because $F181 is called
+via BSR and the return address on the stack must be popped by the RTS instruction.
+
+This two-level approach lets the ROM's block framing logic (leader/sync/checksum at
+$F0FF) run naturally while bypassing all slow bit-level polling of $A7C0 bit 7.
+LOAD"" completes within a few frames instead of real-time 1200 baud.
 
 ---
 
