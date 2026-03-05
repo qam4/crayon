@@ -281,6 +281,71 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     return Result<SaveState>::ok(state);
 }
 
+Result<std::vector<uint8_t>> SaveStateManager::serialize_to_buffer(const SaveState& state) {
+    BinaryWriter w;
+
+    // Header
+    w.write_u32(MAGIC);
+    w.write_u32(CURRENT_VERSION);
+
+    // All component states
+    write_cpu(w, state.cpu_state);
+    write_gate_array(w, state.gate_array_state);
+    write_memory(w, state.memory_state);
+    write_pia(w, state.pia_state);
+    write_audio(w, state.audio_state);
+    write_input(w, state.input_state);
+    write_light_pen(w, state.light_pen_state);
+    write_cassette(w, state.cassette_state);
+    w.write_u64(state.frame_count);
+
+    // Checksum over all data so far
+    uint32_t checksum = crc32(w.data().data(), w.data().size());
+    w.write_u32(checksum);
+
+    return Result<std::vector<uint8_t>>::ok(w.data());
+}
+
+Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data, size_t size) {
+    if (size < 12) return Result<SaveState>::err("Buffer too small for save state");
+
+    // Verify checksum: last 4 bytes are the CRC32 of everything before them
+    if (size < 4) return Result<SaveState>::err("Corrupt save state");
+    uint32_t stored_crc = uint32_t(data[size-4])
+                        | (uint32_t(data[size-3]) << 8)
+                        | (uint32_t(data[size-2]) << 16)
+                        | (uint32_t(data[size-1]) << 24);
+    uint32_t computed_crc = crc32(data, size - 4);
+    if (stored_crc != computed_crc)
+        return Result<SaveState>::err("Checksum mismatch in save state");
+
+    std::vector<uint8_t> buf(data, data + size);
+    BinaryReader r(buf);
+
+    uint32_t magic = r.read_u32();
+    if (magic != MAGIC) return Result<SaveState>::err("Not a Crayon save state");
+
+    uint32_t version = r.read_u32();
+    if (version != CURRENT_VERSION)
+        return Result<SaveState>::err("Incompatible save state version");
+
+    SaveState state;
+    state.version = version;
+    state.cpu_state = read_cpu(r);
+    state.gate_array_state = read_gate_array(r);
+    state.memory_state = read_memory(r);
+    state.pia_state = read_pia(r);
+    state.audio_state = read_audio(r);
+    state.input_state = read_input(r);
+    state.light_pen_state = read_light_pen(r);
+    state.cassette_state = read_cassette(r);
+    state.frame_count = r.read_u64();
+
+    if (!r.ok()) return Result<SaveState>::err("Corrupt save state data");
+
+    return Result<SaveState>::ok(state);
+}
+
 uint32 SaveStateManager::calculate_checksum(const SaveState& /*state*/) {
     return 0; // Checksum is computed over the serialized byte stream, not the struct
 }

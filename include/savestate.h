@@ -10,6 +10,7 @@
 #include "input_handler.h"
 #include "light_pen.h"
 #include "cassette_interface.h"
+#include <vector>
 
 namespace crayon {
 
@@ -31,6 +32,10 @@ class SaveStateManager {
 public:
     static Result<void> save(const std::string& path, const SaveState& state);
     static Result<SaveState> load(const std::string& path);
+
+    // Buffer-based serialization for libretro in-memory save states
+    static Result<std::vector<uint8_t>> serialize_to_buffer(const SaveState& state);
+    static Result<SaveState> deserialize_from_buffer(const uint8_t* data, size_t size);
 
 private:
     static constexpr uint32 CURRENT_VERSION = 1;

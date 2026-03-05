@@ -48,6 +48,7 @@ set(CORE_SOURCES
     src/debugger.cpp
     src/debugger_ui.cpp
     src/frontend_headless.cpp
+    src/vkeyboard.cpp
 )
 
 # UI source files

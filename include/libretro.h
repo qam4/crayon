@@ -24,6 +24,7 @@ extern "C" {
 #define RETRO_DEVICE_NONE     0
 #define RETRO_DEVICE_JOYPAD   1
 #define RETRO_DEVICE_KEYBOARD 3
+#define RETRO_DEVICE_POINTER  6
 
 #define RETRO_DEVICE_ID_JOYPAD_B      0
 #define RETRO_DEVICE_ID_JOYPAD_Y      1
@@ -37,6 +38,52 @@ extern "C" {
 #define RETRO_DEVICE_ID_JOYPAD_X      9
 #define RETRO_DEVICE_ID_JOYPAD_L     10
 #define RETRO_DEVICE_ID_JOYPAD_R     11
+
+#define RETRO_DEVICE_ID_POINTER_X       0
+#define RETRO_DEVICE_ID_POINTER_Y       1
+#define RETRO_DEVICE_ID_POINTER_PRESSED 2
+
+enum retro_key {
+    RETROK_UNKNOWN    = 0,
+    RETROK_BACKSPACE  = 8,
+    RETROK_TAB        = 9,
+    RETROK_RETURN     = 13,
+    RETROK_ESCAPE     = 27,
+    RETROK_SPACE      = 32,
+    RETROK_ASTERISK   = 42,
+    RETROK_PLUS       = 43,
+    RETROK_COMMA      = 44,
+    RETROK_MINUS      = 45,
+    RETROK_PERIOD     = 46,
+    RETROK_SLASH      = 47,
+    RETROK_0 = 48, RETROK_1 = 49, RETROK_2 = 50, RETROK_3 = 51, RETROK_4 = 52,
+    RETROK_5 = 53, RETROK_6 = 54, RETROK_7 = 55, RETROK_8 = 56, RETROK_9 = 57,
+    RETROK_SEMICOLON  = 59,
+    RETROK_EQUALS     = 61,
+    RETROK_AT         = 64,
+    RETROK_LEFTBRACKET  = 91,
+    RETROK_RIGHTBRACKET = 93,
+    RETROK_a = 97,  RETROK_b = 98,  RETROK_c = 99,  RETROK_d = 100,
+    RETROK_e = 101, RETROK_f = 102, RETROK_g = 103, RETROK_h = 104,
+    RETROK_i = 105, RETROK_j = 106, RETROK_k = 107, RETROK_l = 108,
+    RETROK_m = 109, RETROK_n = 110, RETROK_o = 111, RETROK_p = 112,
+    RETROK_q = 113, RETROK_r = 114, RETROK_s = 115, RETROK_t = 116,
+    RETROK_u = 117, RETROK_v = 118, RETROK_w = 119, RETROK_x = 120,
+    RETROK_y = 121, RETROK_z = 122,
+    RETROK_DELETE     = 127,
+    RETROK_UP         = 273,
+    RETROK_DOWN       = 274,
+    RETROK_RIGHT      = 275,
+    RETROK_LEFT       = 276,
+    RETROK_INSERT     = 277,
+    RETROK_HOME       = 278,
+    RETROK_RSHIFT     = 303,
+    RETROK_LSHIFT     = 304,
+    RETROK_RCTRL      = 305,
+    RETROK_LCTRL      = 306,
+    RETROK_RALT       = 307,
+    RETROK_LALT       = 308
+};
 
 #define RETRO_PIXEL_FORMAT_XRGB8888 1
 #define RETRO_PIXEL_FORMAT_RGB565   2
