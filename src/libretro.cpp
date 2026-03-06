@@ -2,6 +2,7 @@
 #include "emulator_core.h"
 #include "savestate.h"
 #include "vkeyboard.h"
+#include "char_mapping.h"
 #include "types.h"
 #include <cstring>
 #include <cstdio>
@@ -37,10 +38,19 @@ static bool g_vkb_shift_was_active = false;
 // ---------------------------------------------------------------------------
 static struct retro_variable core_options[] = {
     { "crayon_cassette_mode", "Cassette Load Mode; Fast|Slow (Real-time)" },
+    { "crayon_autoload_k7", "Auto-Load K7 Cassette; LOAD and RUN|LOAD only|Off" },
     { "crayon_vkb_transparency", "Virtual Keyboard Transparency; Opaque|Semi-Transparent|Transparent" },
     { "crayon_vkb_position", "Virtual Keyboard Position; Bottom|Top" },
     { nullptr, nullptr }
 };
+
+// Auto-load K7 state machine
+enum class AutoLoadState { Idle, WaitBoot, Typing, WaitLoad, TypingRun, Done };
+static AutoLoadState g_autoload_state = AutoLoadState::Idle;
+static int g_autoload_timer = 0;
+static bool g_autoload_k7 = true;     // LOAD""
+static bool g_autoload_run = true;    // + RUN after load
+static bool g_k7_was_loaded = false;  // Track if K7 content was loaded
 
 // ---------------------------------------------------------------------------
 // Input descriptors
@@ -238,6 +248,20 @@ static void poll_core_options() {
             g_vkb.set_position(crayon::VKBPosition::Top);
         if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] VKB position: %s\n", var.value);
     }
+
+    // Auto-load K7
+    var.key = "crayon_autoload_k7";
+    var.value = nullptr;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+        if (std::strcmp(var.value, "LOAD and RUN") == 0) {
+            g_autoload_k7 = true; g_autoload_run = true;
+        } else if (std::strcmp(var.value, "LOAD only") == 0) {
+            g_autoload_k7 = true; g_autoload_run = false;
+        } else {
+            g_autoload_k7 = false; g_autoload_run = false;
+        }
+        if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] Auto-load K7: %s\n", var.value);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +360,22 @@ static bool process_keyboard_input() {
 
         if (pressed) any_pressed = true;
 
-        if (pressed && !g_kb_prev_state[i]) {
+        // Modifier keys and game keys track physical state directly —
+        // they must stay held while the physical key is held.
+        // Letter/digit keys use tap-and-release for BASIC typing.
+        bool is_modifier = (g_key_map[i].mk == crayon::MO5Key::SHIFT ||
+                            g_key_map[i].mk == crayon::MO5Key::BASIC ||
+                            g_key_map[i].mk == crayon::MO5Key::CNT);
+        bool is_game_key = (g_key_map[i].mk == crayon::MO5Key::UP ||
+                            g_key_map[i].mk == crayon::MO5Key::DOWN ||
+                            g_key_map[i].mk == crayon::MO5Key::LEFT ||
+                            g_key_map[i].mk == crayon::MO5Key::RIGHT ||
+                            g_key_map[i].mk == crayon::MO5Key::SPACE);
+
+        if (is_modifier || is_game_key) {
+            input.set_key_state(g_key_map[i].mk, pressed);
+        } else if (pressed && !g_kb_prev_state[i]) {
+            // Regular key just pressed — hold for N frames then auto-release
             input.set_key_state(g_key_map[i].mk, true);
             g_kb_hold_timers[i] = KB_HOLD_FRAMES;
         } else if (g_kb_hold_timers[i] > 0) {
@@ -419,6 +458,10 @@ RETRO_API void retro_set_environment(retro_environment_t cb) {
     // Register core options
     environ_cb(RETRO_ENVIRONMENT_SET_VARIABLES, core_options);
 
+    // Allow starting without content (boot to BASIC prompt)
+    bool no_game = true;
+    environ_cb(RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME, &no_game);
+
     // Input descriptors set in retro_load_game instead
 }
 
@@ -447,7 +490,96 @@ RETRO_API void retro_run(void) {
     process_retropad_input(kb_active);
     process_pointer_input();
 
-    // 4. Run one emulator frame
+    // 4. Auto-load K7: inject keystrokes to type LOAD"" and optionally RUN
+    if (g_autoload_state != AutoLoadState::Idle && g_autoload_state != AutoLoadState::Done) {
+        auto& input = g_emulator->get_input_handler();
+        g_autoload_timer++;
+
+        // Simple keystroke sequence using frame-based timing
+        // LOAD""\n takes ~60 frames to boot + type, then wait for load, then RUN\n
+        static const char* load_cmd = "LOAD\"\"\n";
+        static const char* run_cmd = "RUN\n";
+        static int char_idx = 0;
+        static int key_phase = 0;  // 0=press, 1=hold, 2=release, 3=gap
+
+        if (g_autoload_state == AutoLoadState::WaitBoot) {
+            // Wait for BASIC prompt (~60 frames after reset)
+            if (g_autoload_timer >= 80) {
+                g_autoload_state = AutoLoadState::Typing;
+                g_autoload_timer = 0;
+                char_idx = 0;
+                key_phase = 0;
+            }
+        } else if (g_autoload_state == AutoLoadState::Typing) {
+            char c = load_cmd[char_idx];
+            if (c == '\0') {
+                // Done typing LOAD""
+                g_autoload_state = AutoLoadState::WaitLoad;
+                g_autoload_timer = 0;
+            } else {
+                crayon::CharMapping mapping;
+                if (key_phase == 0) {
+                    if (crayon::char_to_mo5(c, mapping)) {
+                        if (mapping.shift) input.set_key_state(crayon::MO5Key::SHIFT, true);
+                        input.set_key_state(mapping.key, true);
+                    }
+                    key_phase = 1;
+                } else if (key_phase <= 3) {
+                    key_phase++;
+                } else if (key_phase == 4) {
+                    // Release
+                    if (crayon::char_to_mo5(c, mapping)) {
+                        input.set_key_state(mapping.key, false);
+                        if (mapping.shift) input.set_key_state(crayon::MO5Key::SHIFT, false);
+                    }
+                    key_phase = 5;
+                } else {
+                    // Gap done, next char
+                    char_idx++;
+                    key_phase = 0;
+                }
+            }
+        } else if (g_autoload_state == AutoLoadState::WaitLoad) {
+            // Wait for cassette load to complete (~200 frames in fast mode)
+            if (g_autoload_timer >= 250) {
+                if (g_autoload_run) {
+                    g_autoload_state = AutoLoadState::TypingRun;
+                    g_autoload_timer = 0;
+                    char_idx = 0;
+                    key_phase = 0;
+                } else {
+                    g_autoload_state = AutoLoadState::Done;
+                }
+            }
+        } else if (g_autoload_state == AutoLoadState::TypingRun) {
+            char c = run_cmd[char_idx];
+            if (c == '\0') {
+                g_autoload_state = AutoLoadState::Done;
+            } else {
+                crayon::CharMapping mapping;
+                if (key_phase == 0) {
+                    if (crayon::char_to_mo5(c, mapping)) {
+                        if (mapping.shift) input.set_key_state(crayon::MO5Key::SHIFT, true);
+                        input.set_key_state(mapping.key, true);
+                    }
+                    key_phase = 1;
+                } else if (key_phase <= 3) {
+                    key_phase++;
+                } else if (key_phase == 4) {
+                    if (crayon::char_to_mo5(c, mapping)) {
+                        input.set_key_state(mapping.key, false);
+                        if (mapping.shift) input.set_key_state(crayon::MO5Key::SHIFT, false);
+                    }
+                    key_phase = 5;
+                } else {
+                    char_idx++;
+                    key_phase = 0;
+                }
+            }
+        }
+    }
+
+    // 5. Run one emulator frame
     g_emulator->run_frame();
 
     // 5. Video: get framebuffer, composite VKB if visible, submit
@@ -493,6 +625,7 @@ RETRO_API void retro_run(void) {
 }
 
 RETRO_API bool retro_load_game(const struct retro_game_info* game) {
+    // game == NULL is valid in no-game mode (boot to BASIC prompt)
     // Set pixel format
     unsigned pixel_format = RETRO_PIXEL_FORMAT_XRGB8888;
     environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &pixel_format);
@@ -554,9 +687,9 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game) {
                        basic_path.c_str(), monitor_path.c_str());
 
     // --- K7 vs cartridge detection ---
-    if (game && game->data && game->size > 0) {
+    if (game && game->path) {
         std::string ext = get_extension(game->path);
-        const auto* data = static_cast<const crayon::uint8*>(game->data);
+        const auto* data = (game->data) ? static_cast<const crayon::uint8*>(game->data) : nullptr;
         size_t size = game->size;
 
         if (ext == ".k7") {
@@ -593,11 +726,21 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game) {
                 }
             }
             g_emulator->play_cassette();
+            g_k7_was_loaded = true;
             if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] K7 loaded and playing\n");
 
         } else if (ext == ".rom" || ext == ".bin" || ext == ".mo5") {
             // Cartridge ROM
-            auto cart_result = g_emulator->load_cartridge(data, size);
+            crayon::Result<void> cart_result;
+            if (data && size > 0) {
+                cart_result = g_emulator->load_cartridge(data, size);
+            } else if (game->path) {
+                cart_result = g_emulator->load_cartridge(std::string(game->path));
+            } else {
+                if (log_cb) log_cb(RETRO_LOG_ERROR, "[Crayon] No cartridge data or path\n");
+                g_emulator.reset();
+                return false;
+            }
             if (cart_result.is_err()) {
                 if (log_cb) log_cb(RETRO_LOG_ERROR, "[Crayon] Failed to load cartridge: %s\n",
                                    cart_result.error.c_str());
@@ -654,6 +797,14 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game) {
     poll_core_options();
 
     g_emulator->reset();
+
+    // Start auto-load sequence if K7 was loaded and option is enabled
+    if (g_k7_was_loaded && g_autoload_k7) {
+        g_autoload_state = AutoLoadState::WaitBoot;
+        g_autoload_timer = 0;
+        if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] Auto-load K7 started\n");
+    }
+
     return true;
 }
 
