@@ -71,8 +71,12 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
                 // MO5 Port B write: bits 1-6 = key scancode, bit 0 = sound
                 state_.output_latch_b = value & 0x7F;
                 state_.drb = state_.output_latch_b;
-                // Bit 0 of Port B is the buzzer/sound output on MO5
-                if (audio_) audio_->set_buzzer_bit(value & 0x01);
+                // Only update buzzer when bit 0 actually changes
+                bool new_buzzer = (value & 0x01) != 0;
+                if (audio_ && new_buzzer != state_.buzzer_bit) {
+                    state_.buzzer_bit = new_buzzer;
+                    audio_->set_buzzer_bit(new_buzzer);
+                }
             } else {
                 state_.ddrb = value;
             }

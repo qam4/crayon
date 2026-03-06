@@ -93,6 +93,9 @@ void SDLFrontend::shutdown() {
 void SDLFrontend::run() {
     uint32_t fps_last_time = SDL_GetTicks();
     uint32_t fps_frame_count = 0;
+    uint64_t perf_freq = SDL_GetPerformanceFrequency();
+    uint64_t frame_start = SDL_GetPerformanceCounter();
+    static constexpr double TARGET_FRAME_TIME = 1.0 / 50.0;  // 50Hz MO5
 
     while (running_) {
         if (frame_limit_ > 0 && frame_count_ >= frame_limit_) { running_ = false; break; }
@@ -155,6 +158,17 @@ void SDLFrontend::run() {
         render_frame();
         process_audio();
         frame_count_++;
+
+        // Frame pacing: maintain 50Hz regardless of monitor refresh rate
+        uint64_t frame_end = SDL_GetPerformanceCounter();
+        double frame_elapsed = static_cast<double>(frame_end - frame_start) / perf_freq;
+        if (frame_elapsed < TARGET_FRAME_TIME) {
+            double sleep_ms = (TARGET_FRAME_TIME - frame_elapsed) * 1000.0;
+            if (sleep_ms > 1.0) SDL_Delay(static_cast<uint32_t>(sleep_ms - 0.5));
+            // Spin-wait for remaining sub-millisecond precision
+            while (static_cast<double>(SDL_GetPerformanceCounter() - frame_start) / perf_freq < TARGET_FRAME_TIME) {}
+        }
+        frame_start = SDL_GetPerformanceCounter();
     }
 }
 
@@ -249,6 +263,11 @@ void SDLFrontend::render_frame() {
         // Audio
         if (audio_muted_) {
             status << "  |  MUTE";
+        }
+        size_t underruns = emulator_->get_audio().underrun_count();
+        size_t toggles = emulator_->get_audio().toggle_count();
+        if (underruns > 0 || toggles > 0) {
+            status << "  |  AU:" << underruns << " T:" << toggles;
         }
 
         osd_renderer_->render_status_bar(status.str());

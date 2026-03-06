@@ -107,6 +107,7 @@ void EmulatorCore::run_frame() {
         for (uint8_t i = 0; i < cycles; ++i)
             master_clock_.tick();
 
+        audio_.tick(cycles);
         cassette_.update_cycle(master_clock_.get_cycle_count());
         handle_interrupts();
     }

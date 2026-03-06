@@ -15,7 +15,7 @@ struct FrontendConfig {
     bool headless = false;
     std::string aspect_ratio = "4:3";
 
-    int sample_rate = 44100;
+    int sample_rate = 48000;
     int audio_buffer_size = 512;
     float master_volume = 0.7f;
     bool audio_enabled = true;
