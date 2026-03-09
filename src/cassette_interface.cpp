@@ -69,6 +69,10 @@ void CassetteInterface::update_cycle(uint64_t cycle) {
 }
 
 bool CassetteInterface::read_data_bit() {
+    // In fast mode, the $F10B/$F181 interception handles all reading.
+    // Don't auto-play or advance the slow-mode position.
+    if (load_mode_ == CassetteLoadMode::Fast) return false;
+
     // Auto-play: if ROM reads cassette while tape is loaded but not playing, start it
     if (!state_.playing && !state_.k7_data.empty()) {
         state_.playing = true;

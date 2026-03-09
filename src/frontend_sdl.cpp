@@ -329,6 +329,12 @@ void SDLFrontend::process_input() {
                             auto result = emulator_->get_cassette().load_k7(selected);
                             if (result.is_ok()) {
                                 emulator_->play_cassette();
+                                auto& cass = emulator_->get_cassette();
+                                std::cout << "K7 loaded via menu: " << selected
+                                          << " (" << cass.get_state().k7_data.size() << " bytes"
+                                          << ", parsed=" << cass.has_data()
+                                          << ", mode=" << (cass.get_load_mode() == crayon::CassetteLoadMode::Fast ? "fast" : "slow")
+                                          << ")\n";
                                 osd_renderer_->show_notification("K7 loaded: " + selected.substr(selected.find_last_of("/\\") + 1), 2000);
                             } else {
                                 osd_renderer_->show_notification("Failed to load K7", 2000);
