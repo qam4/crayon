@@ -19,15 +19,15 @@ Result<void> CassetteInterface::load_k7(const std::string& path) {
     state_.k7_data.assign((std::istreambuf_iterator<char>(file)), {});
     state_.read_position = 0;
     state_.bit_position = 0;
+    fast_read_pos_ = 0;
+    fast_bit_pos_ = 0;
+    current_block_ = 0;
+    block_byte_pos_ = 0;
 
     // Parse the raw data into structured blocks
     auto result = parse_k7(state_.k7_data);
     if (result.is_ok()) {
         parsed_file_ = std::move(*result.value);
-        current_block_ = 0;
-        block_byte_pos_ = 0;
-        fast_read_pos_ = 0;
-        fast_bit_pos_ = 0;
     }
     // Even if parsing fails, keep raw data for slow mode playback
 
@@ -173,7 +173,12 @@ Result<K7File> CassetteInterface::parse_k7(const std::vector<uint8_t>& raw_data)
             ++pos;
             continue;
         }
-        ++pos; // consume sync byte
+        ++pos; // consume 0x3C sync byte
+
+        // Skip second sync byte 0x5A if present (standard MO5 cassette format)
+        if (pos < size && raw_data[pos] == 0x5A) {
+            ++pos;
+        }
 
         // Need at least type + length bytes
         if (pos + 2 > size) {
@@ -243,8 +248,9 @@ std::vector<uint8_t> CassetteInterface::serialize_k7(const K7File& file) {
             out.push_back(0x01);
         }
 
-        // Sync byte
+        // Sync bytes
         out.push_back(0x3C);
+        out.push_back(0x5A);
 
         // Block type
         out.push_back(block.type);
