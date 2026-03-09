@@ -46,8 +46,8 @@ void AudioSystem::flush_cycles() {
     int16_t sample;
     if (toggle_count_ == 0) {
         sample = 0;  // No toggles ever — silence
-    } else if (cycles_since_toggle_ > 2000) {
-        // ~2ms without a toggle — buzzer is idle, output silence
+    } else if (cycles_since_toggle_ > 50000) {
+        // ~50ms without a toggle — buzzer is idle, output silence
         sample = 0;
     } else {
         sample = state_.buzzer_state ? 8192 : -8192;

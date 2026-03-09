@@ -15,7 +15,7 @@ uint8_t PIA::read_register(uint8_t reg) {
     switch (reg & 0x03) {
         case 0: // Port A data/direction (not used on MO5 — 0xA7C0 is gate array reg)
             if (state_.cra & 0x04) {
-                if (cassette_ && cassette_->is_playing()) {
+                if (cassette_) {
                     bool bit = cassette_->read_data_bit();
                     state_.input_pins_a = (state_.input_pins_a & 0x7F) | (bit ? 0x80 : 0x00);
                 }
@@ -57,9 +57,17 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
             if (state_.cra & 0x04) {
                 state_.output_latch_a = value;
                 state_.dra = (value & state_.ddra) | (state_.input_pins_a & ~state_.ddra);
-                // MO5 Port A bit 0: cassette write output
+                // MO5 Port A bit 0: cassette write / audio output
+                // On real hardware, this goes to the cassette DIN and the
+                // internal speaker via the same audio amplifier. Games use
+                // this for digitized speech (PWM).
+                bool new_cass_bit = (value & 0x01) != 0;
+                if (audio_ && new_cass_bit != state_.cass_out_bit) {
+                    state_.cass_out_bit = new_cass_bit;
+                    audio_->set_buzzer_bit(new_cass_bit || state_.buzzer_bit);
+                }
                 if (cassette_ && cassette_->is_recording()) {
-                    cassette_->write_data_bit((value & 0x01) != 0);
+                    cassette_->write_data_bit(new_cass_bit);
                 }
             } else {
                 state_.ddra = value;
@@ -75,7 +83,7 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
                 bool new_buzzer = (value & 0x01) != 0;
                 if (audio_ && new_buzzer != state_.buzzer_bit) {
                     state_.buzzer_bit = new_buzzer;
-                    audio_->set_buzzer_bit(new_buzzer);
+                    audio_->set_buzzer_bit(new_buzzer || state_.cass_out_bit);
                 }
             } else {
                 state_.ddrb = value;

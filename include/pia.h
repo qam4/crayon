@@ -20,6 +20,7 @@ struct PIAState {
     bool irqa1_flag = false, irqa2_flag = false;
     bool irqb1_flag = false, irqb2_flag = false;
     bool buzzer_bit = false;
+    bool cass_out_bit = false;
 };
 
 class PIA {
