@@ -64,6 +64,7 @@ void PIA::write_register(uint8_t reg, uint8_t value) {
                 bool new_cass_bit = (value & 0x01) != 0;
                 if (audio_ && new_cass_bit != state_.cass_out_bit) {
                     state_.cass_out_bit = new_cass_bit;
+                    audio_->increment_porta_toggle();
                     audio_->set_buzzer_bit(new_cass_bit || state_.buzzer_bit);
                 }
                 if (cassette_ && cassette_->is_recording()) {

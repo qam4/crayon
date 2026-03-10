@@ -11,6 +11,13 @@ void AudioSystem::reset() {
     write_pos_ = 0;
     read_pos_ = 0;
     cycle_counter_ = 0;
+    cycles_since_toggle_ = 100000;
+    prev_sample_ = 0;
+    dac_sample_ = 0;
+    dac_active_ = false;
+    toggle_count_ = 0;
+    porta_toggle_count_ = 0;
+    underrun_count_ = 0;
     std::memset(ring_buffer_, 0, sizeof(ring_buffer_));
 }
 
@@ -22,6 +29,13 @@ void AudioSystem::set_buzzer_bit(bool on) {
         cycles_since_toggle_ = 0;
     }
     state_.buzzer_state = on;
+}
+
+void AudioSystem::set_dac_sample(int16_t sample) {
+    flush_cycles();
+    dac_sample_ = sample;
+    dac_active_ = true;
+    cycles_since_toggle_ = 0;
 }
 
 void AudioSystem::tick(int cpu_cycles) {
@@ -44,10 +58,16 @@ void AudioSystem::flush_cycles() {
     // 1-bit buzzer: swing between -8192 and +8192 when toggling.
     // After toggling stops, the output decays to 0 to avoid DC offset.
     int16_t sample;
-    if (toggle_count_ == 0) {
-        sample = 0;  // No toggles ever — silence
+    if (dac_active_ && cycles_since_toggle_ <= 50000) {
+        // 6-bit DAC from game extension — use DAC sample directly
+        sample = dac_sample_;
+    } else if (dac_active_ && cycles_since_toggle_ > 50000) {
+        // DAC idle — decay to silence, fall back to buzzer
+        sample = 0;
+        dac_active_ = false;
+    } else if (toggle_count_ == 0) {
+        sample = 0;
     } else if (cycles_since_toggle_ > 50000) {
-        // ~50ms without a toggle — buzzer is idle, output silence
         sample = 0;
     } else {
         sample = state_.buzzer_state ? 8192 : -8192;

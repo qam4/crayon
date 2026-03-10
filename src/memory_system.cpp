@@ -2,6 +2,7 @@
 #include "pia.h"
 #include "gate_array.h"
 #include "cassette_interface.h"
+#include "audio_system.h"
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -92,6 +93,10 @@ uint8_t MemorySystem::read(uint16_t address) {
             static constexpr uint8_t mo5_pia_map[4] = {0, 2, 1, 3};
             return pia_->read_register(mo5_pia_map[address & 0x03]);
         }
+        // Game extension PIA at $A7CC-$A7CF
+        if (address >= 0xA7CC && address <= 0xA7CF) {
+            return game_pia_read(address & 0x03);
+        }
         return 0xFF;
     }
     if (address < 0xB000) {
@@ -142,12 +147,14 @@ void MemorySystem::write(uint16_t address, uint8_t value) {
             return;
         }
         if (pia_ && address >= 0xA7C1 && address <= 0xA7C3) {
-            // MO5 PIA register mapping (address lines swapped vs standard 6821):
-            //   0xA7C1 → PIA reg 2 (Port B data/DDR — keyboard scan)
-            //   0xA7C2 → PIA reg 1 (CRA)
-            //   0xA7C3 → PIA reg 3 (CRB — vsync interrupt)
             static constexpr uint8_t mo5_pia_map[4] = {0, 2, 1, 3};
             pia_->write_register(mo5_pia_map[address & 0x03], value);
+        }
+        // Game extension PIA (music & games) at $A7CC-$A7CF
+        // Port B ($A7CD when CRB bit 2 set) drives a 6-bit DAC for
+        // digitized speech and music (e.g., Super Tennis voice).
+        if (address >= 0xA7CC && address <= 0xA7CF) {
+            game_pia_write(address & 0x03, value);
         }
         return;
     }
@@ -163,6 +170,77 @@ uint8_t MemorySystem::get_video_page() const { return state_.video_page; }
 void MemorySystem::set_pia(PIA* pia) { pia_ = pia; }
 void MemorySystem::set_gate_array(GateArray* ga) { gate_array_ = ga; }
 void MemorySystem::set_cassette(CassetteInterface* cass) { cassette_ = cass; }
+void MemorySystem::set_audio(AudioSystem* audio) { audio_ = audio; }
+
+// ---------------------------------------------------------------------------
+// Game extension PIA (music & games) — minimal 6821 emulation for DAC
+// Mapped at $A7CC-$A7CF with swapped address lines (read_alt/write_alt):
+//   $A7CC → reg 0 (Port A data/DDR)
+//   $A7CD → reg 2 (Port B data/DDR — 6-bit DAC output)
+//   $A7CE → reg 1 (CRA)
+//   $A7CF → reg 3 (CRB)
+// ---------------------------------------------------------------------------
+
+void MemorySystem::game_pia_write(uint8_t reg, uint8_t value) {
+    static constexpr uint8_t alt_map[4] = {0, 2, 1, 3};
+    uint8_t mapped = alt_map[reg];
+
+    switch (mapped) {
+        case 0: // Port A
+            if (game_pia_cra_ & 0x04)
+                game_pia_ora_ = value;
+            else
+                game_pia_ddra_ = value;
+            break;
+        case 1: // CRA
+            game_pia_cra_ = value & 0x3F;
+            break;
+        case 2: // Port B — 6-bit DAC output
+            if (game_pia_crb_ & 0x04) {
+                game_pia_orb_ = value;
+                // Route to audio as 6-bit DAC (0-63 → scaled to int16 range)
+                if (audio_) {
+                    // Convert 6-bit unsigned (0-63) to signed int16
+                    int16_t sample = static_cast<int16_t>((value & 0x3F) * 512 - 16384);
+                    audio_->set_dac_sample(sample);
+                }
+            } else {
+                game_pia_ddrb_ = value;
+            }
+            break;
+        case 3: // CRB
+            game_pia_crb_ = value & 0x3F;
+            break;
+    }
+}
+
+uint8_t MemorySystem::game_pia_read(uint8_t reg) {
+    static constexpr uint8_t alt_map[4] = {0, 2, 1, 3};
+    uint8_t mapped = alt_map[reg];
+    uint8_t result;
+
+    switch (mapped) {
+        case 0: // Port A
+            if (game_pia_cra_ & 0x04)
+                result = (game_pia_ora_ & game_pia_ddra_) | (0xFF & ~game_pia_ddra_);
+            else
+                result = game_pia_ddra_;
+            break;
+        case 1: result = game_pia_cra_; break;
+        case 2: // Port B — bits 0-5: DAC output (active), bits 6-7: joystick buttons (pulled high)
+            if (game_pia_crb_ & 0x04) {
+                // Input pins: bits 0-5 = 0 (DAC feedback), bits 6-7 = 1 (buttons not pressed)
+                uint8_t input_pins = 0xC0;
+                result = (game_pia_orb_ & game_pia_ddrb_) | (input_pins & ~game_pia_ddrb_);
+            } else {
+                result = game_pia_ddrb_;
+            }
+            break;
+        case 3: result = game_pia_crb_; break;
+        default: result = 0xFF; break;
+    }
+    return result;
+}
 
 void MemorySystem::insert_cartridge() { state_.cartridge_inserted = true; }
 void MemorySystem::remove_cartridge() { state_.cartridge_inserted = false; }

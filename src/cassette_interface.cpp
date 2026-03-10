@@ -7,10 +7,17 @@ namespace crayon {
 CassetteInterface::CassetteInterface() { reset(); }
 
 void CassetteInterface::reset() {
-    // Preserve loaded K7 data across reset
+    // Preserve loaded K7 data and parsed file across reset
     auto saved_data = std::move(state_.k7_data);
+    auto saved_parsed = std::move(parsed_file_);
     state_ = CassetteState{};
     state_.k7_data = std::move(saved_data);
+    parsed_file_ = std::move(saved_parsed);
+    // Rewind fast read position so K7 can be loaded again
+    fast_read_pos_ = 0;
+    fast_bit_pos_ = 0;
+    current_block_ = 0;
+    block_byte_pos_ = 0;
 }
 
 Result<void> CassetteInterface::load_k7(const std::string& path) {

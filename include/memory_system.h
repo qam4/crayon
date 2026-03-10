@@ -11,6 +11,7 @@ namespace crayon {
 class PIA;
 class GateArray;
 class CassetteInterface;
+class AudioSystem;
 
 struct MO5MemoryState {
     // MO5 video RAM: two 8KB pages
@@ -55,6 +56,7 @@ public:
     void set_pia(PIA* pia);
     void set_gate_array(GateArray* ga);
     void set_cassette(CassetteInterface* cass);
+    void set_audio(AudioSystem* audio);
 
     void insert_cartridge();
     void remove_cartridge();
@@ -68,6 +70,14 @@ private:
     PIA* pia_ = nullptr;
     GateArray* gate_array_ = nullptr;
     CassetteInterface* cassette_ = nullptr;
+    AudioSystem* audio_ = nullptr;
+
+    // Game extension PIA (music & games) — minimal emulation for 6-bit DAC
+    uint8_t game_pia_cra_ = 0, game_pia_crb_ = 0;
+    uint8_t game_pia_ddra_ = 0, game_pia_ddrb_ = 0;
+    uint8_t game_pia_ora_ = 0, game_pia_orb_ = 0;
+    void game_pia_write(uint8_t reg, uint8_t value);
+    uint8_t game_pia_read(uint8_t reg);
 };
 
 } // namespace crayon

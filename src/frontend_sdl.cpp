@@ -266,8 +266,9 @@ void SDLFrontend::render_frame() {
         }
         size_t underruns = emulator_->get_audio().underrun_count();
         size_t toggles = emulator_->get_audio().toggle_count();
-        if (underruns > 0 || toggles > 0) {
-            status << "  |  AU:" << underruns << " T:" << toggles;
+        size_t porta = emulator_->get_audio().porta_toggle_count();
+        if (underruns > 0 || toggles > 0 || porta > 0) {
+            status << "  |  AU:" << underruns << " B:" << toggles << " A:" << porta;
         }
 
         osd_renderer_->render_status_bar(status.str());
