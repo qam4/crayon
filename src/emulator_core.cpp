@@ -68,32 +68,59 @@ void EmulatorCore::run_frame() {
             uint16_t pc = cpu_.get_pc();
 
             if (pc == 0xF10B) {
-                // Skip bit-level leader search: consume raw bytes until 0x01
+                // Skip leader: find 0x3C sync in raw K7 data.
+                // For standard K7 (0x3C followed by 0x5A): rewind before 0x3C
+                // and let the ROM handle sync naturally via $F118/$F181.
+                // For non-standard K7 (0x3C NOT followed by 0x5A): consume
+                // the sync and jump directly to $F128 (block type read).
                 uint8_t byte;
+                bool found = false;
+                bool has_5a = false;
                 while (cassette_.try_fast_read_byte(byte)) {
-                    if (byte == 0x01) {
-                        memory_.write(0x2045, 0x01);
-                        auto cpu_state = cpu_.get_state();
-                        cpu_state.a = 0x01;
-                        cpu_state.pc = 0xF118;
-                        cpu_state.clock_cycles += 4;
-                        cpu_.set_state(cpu_state);
-                        for (uint8_t i = 0; i < 4; ++i)
-                            master_clock_.tick();
+                    if (byte == 0x3C) {
+                        // Check if 0x5A follows
+                        uint8_t peek;
+                        if (cassette_.try_fast_read_byte(peek)) {
+                            if (peek == 0x5A) {
+                                has_5a = true;
+                                // Rewind past both 0x3C and 0x5A
+                                cassette_.rewind_fast_read(2);
+                            } else {
+                                // No 0x5A — rewind just the peek
+                                cassette_.rewind_fast_read(1);
+                            }
+                        }
+                        found = true;
                         break;
                     }
+                }
+                if (found) {
+                    auto cpu_state = cpu_.get_state();
+                    if (has_5a) {
+                        // Standard format: let ROM handle sync via $F118
+                        memory_.write(0x2045, 0x01);
+                        cpu_state.a = 0x01;
+                        cpu_state.pc = 0xF118;
+                    } else {
+                        // Non-standard: skip sync, jump to block type read
+                        cpu_state.pc = 0xF128;
+                        cpu_state.cc |= 0xD0;
+                    }
+                    cpu_state.clock_cycles += 4;
+                    cpu_.set_state(cpu_state);
+                    for (uint8_t i = 0; i < 4; ++i)
+                        master_clock_.tick();
                 }
                 continue;
             }
 
             if (pc == 0xF181) {
-                // Read-one-byte: inject next raw K7 byte
                 uint8_t byte;
                 if (cassette_.try_fast_read_byte(byte)) {
                     auto cpu_state = cpu_.get_state();
                     cpu_state.a = byte;
                     cpu_state.b = 0;
-                    cpu_state.pc = 0xF18A;  // RTS — will pop return address from stack
+                    cpu_state.pc = 0xF18A;
                     cpu_state.clock_cycles += 10;
                     cpu_.set_state(cpu_state);
                     memory_.write(0x2045, byte);

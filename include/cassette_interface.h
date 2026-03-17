@@ -60,6 +60,8 @@ public:
 
     // Fast mode: direct byte injection at $F181 interception point
     bool try_fast_read_byte(uint8_t& out_byte);
+    void rewind_fast_read(size_t bytes) { if (fast_read_pos_ >= bytes) fast_read_pos_ -= bytes; }
+    size_t get_fast_read_pos() const { return fast_read_pos_; }
 
     // Fast mode: block-level injection at $F0FF interception point
     const K7Block* try_fast_read_block();
