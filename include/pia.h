@@ -38,8 +38,8 @@ public:
     void set_audio(AudioSystem* audio);
     void set_memory(MemorySystem* mem);
 
-    bool irq_active() const;
-    bool firq_active() const;
+    inline bool irq_active() const;
+    inline bool firq_active() const;
 
     void signal_vsync();
     void signal_lightpen();
@@ -56,6 +56,16 @@ private:
     AudioSystem* audio_ = nullptr;
     MemorySystem* memory_ = nullptr;
 };
+
+inline bool PIA::irq_active() const {
+    return (state_.irqa1_flag && (state_.cra & 0x01)) ||
+           (state_.irqa2_flag && (state_.cra & 0x08));
+}
+
+inline bool PIA::firq_active() const {
+    return (state_.irqb1_flag && (state_.crb & 0x01)) ||
+           (state_.irqb2_flag && (state_.crb & 0x08));
+}
 
 } // namespace crayon
 

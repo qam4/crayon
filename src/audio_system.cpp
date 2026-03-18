@@ -38,11 +38,6 @@ void AudioSystem::set_dac_sample(int16_t sample) {
     cycles_since_toggle_ = 0;
 }
 
-void AudioSystem::tick(int cpu_cycles) {
-    cycle_counter_ += cpu_cycles;
-    cycles_since_toggle_ += cpu_cycles;
-}
-
 void AudioSystem::generate_samples(int /*cpu_cycles*/) {
     // Flush any remaining accumulated cycles into samples
     flush_cycles();

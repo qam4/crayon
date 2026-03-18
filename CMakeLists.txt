@@ -71,6 +71,11 @@ add_library(crayon_core STATIC ${CORE_SOURCES})
 target_include_directories(crayon_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
 set_target_properties(crayon_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# GCC < 9 needs -lstdc++fs for <experimental/filesystem>
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+    target_link_libraries(crayon_core PUBLIC stdc++fs)
+endif()
+
 # Find miniz for ZIP support
 find_package(miniz CONFIG QUIET)
 if(miniz_FOUND)
@@ -208,6 +213,10 @@ if(BUILD_TESTS)
     add_executable(disasm_roms tools/disasm_roms.cpp)
     target_link_libraries(disasm_roms crayon_core)
 
+    # Benchmark harness for perf profiling
+    add_executable(crayon_benchmark tools/crayon_benchmark.cpp)
+    target_link_libraries(crayon_benchmark crayon_core)
+
     enable_testing()
     
     FetchContent_Declare(
@@ -236,6 +245,7 @@ if(BUILD_TESTS)
     add_executable(crayon_tests
         tests/test_placeholder.cpp
         tests/test_cpu_interrupts.cpp
+        tests/test_perf_properties.cpp
     )
     
     target_link_libraries(crayon_tests crayon_core gtest_main rapidcheck)

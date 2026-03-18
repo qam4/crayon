@@ -21,7 +21,7 @@ public:
     void reset();
     void set_buzzer_bit(bool on);
     void set_dac_sample(int16_t sample);  // 6-bit DAC from game extension
-    void tick(int cpu_cycles);          // Call after each instruction with cycle count
+    inline void tick(int cpu_cycles);          // Call after each instruction with cycle count
     void generate_samples(int cpu_cycles); // Call at end of frame to flush remaining
     void fill_audio_buffer(int16_t* buffer, size_t samples);
     size_t samples_available() const;
@@ -50,6 +50,11 @@ private:
 
     void flush_cycles();
 };
+
+inline void AudioSystem::tick(int cpu_cycles) {
+    cycle_counter_ += cpu_cycles;
+    cycles_since_toggle_ += cpu_cycles;
+}
 
 } // namespace crayon
 

@@ -100,16 +100,6 @@ void PIA::set_light_pen(LightPen* lp) { light_pen_ = lp; }
 void PIA::set_audio(AudioSystem* audio) { audio_ = audio; }
 void PIA::set_memory(MemorySystem* mem) { memory_ = mem; }
 
-bool PIA::irq_active() const {
-    return (state_.irqa1_flag && (state_.cra & 0x01)) ||
-           (state_.irqa2_flag && (state_.cra & 0x08));
-}
-
-bool PIA::firq_active() const {
-    return (state_.irqb1_flag && (state_.crb & 0x01)) ||
-           (state_.irqb2_flag && (state_.crb & 0x08));
-}
-
 void PIA::signal_vsync() { state_.irqb1_flag = true; }
 void PIA::signal_lightpen() { state_.irqa1_flag = true; }
 

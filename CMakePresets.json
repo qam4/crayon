@@ -47,6 +47,61 @@
         "CMAKE_C_COMPILER": "C:/msys64/mingw64/bin/gcc.exe",
         "CMAKE_CXX_COMPILER": "C:/msys64/mingw64/bin/g++.exe"
       }
+    },
+    {
+      "name": "profile",
+      "inherits": ["ci-std", "cmake-pedantic"],
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/profile",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-O2 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic"
+      }
+    },
+    {
+      "name": "flags-lto",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS": "-O2 -flto -Wall -Wextra -Wpedantic",
+        "CMAKE_C_FLAGS": "-O2 -flto",
+        "CMAKE_EXE_LINKER_FLAGS": "-flto",
+        "CMAKE_AR": "/usr/bin/gcc-ar",
+        "CMAKE_RANLIB": "/usr/bin/gcc-ranlib"
+      }
+    },
+    {
+      "name": "release-lto",
+      "inherits": ["flags-lto", "ci-std", "cmake-pedantic"],
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release-lto",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "ci-linux",
+      "inherits": ["flags-lto", "ci-std", "cmake-pedantic"],
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci-linux",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "pgo-generate",
+      "inherits": ["ci-std", "cmake-pedantic"],
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/pgo-generate",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-O2 -fprofile-generate -Wall -Wextra -Wpedantic"
+      }
+    },
+    {
+      "name": "pgo-use",
+      "inherits": ["ci-std", "cmake-pedantic"],
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/pgo-use",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-O2 -fprofile-use -Wall -Wextra -Wpedantic"
+      }
     }
   ]
 }

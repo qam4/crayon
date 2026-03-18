@@ -586,16 +586,14 @@ RETRO_API void retro_run(void) {
     const crayon::uint32* fb = g_emulator->get_framebuffer();
     if (fb && video_cb) {
         if (g_vkb.is_visible()) {
-            // Copy and convert RGBA → XRGB8888, then composite VKB
-            for (int i = 0; i < crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT; ++i)
-                g_vkb_framebuffer[i] = rgba_to_xrgb(fb[i]);
+            // Framebuffer is already XRGB8888 — copy directly, then composite VKB
+            std::memcpy(g_vkb_framebuffer, fb, crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT * sizeof(uint32_t));
             g_vkb.render(g_vkb_framebuffer, crayon::DISPLAY_WIDTH, crayon::DISPLAY_HEIGHT);
             video_cb(g_vkb_framebuffer, crayon::DISPLAY_WIDTH, crayon::DISPLAY_HEIGHT,
                      crayon::DISPLAY_WIDTH * sizeof(uint32_t));
         } else {
-            // Convert RGBA → XRGB8888 in-place copy
-            for (int i = 0; i < crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT; ++i)
-                g_vkb_framebuffer[i] = rgba_to_xrgb(fb[i]);
+            // Framebuffer is already XRGB8888 — copy directly
+            std::memcpy(g_vkb_framebuffer, fb, crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT * sizeof(uint32_t));
             video_cb(g_vkb_framebuffer, crayon::DISPLAY_WIDTH, crayon::DISPLAY_HEIGHT,
                      crayon::DISPLAY_WIDTH * sizeof(uint32_t));
         }
@@ -797,6 +795,9 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game) {
     poll_core_options();
 
     g_emulator->reset();
+
+    // Use XRGB8888 palette directly — libretro expects XRGB8888 pixel format
+    g_emulator->get_gate_array().set_palette_mode(true);
 
     // Start auto-load sequence if K7 was loaded and option is enabled
     if (g_k7_was_loaded && g_autoload_k7) {

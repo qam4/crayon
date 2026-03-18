@@ -50,6 +50,12 @@ void EmulatorCore::run_frame() {
     if (!running_ || paused_) return;
 
     master_clock_.clear_frame_complete();
+
+    // Hoist cassette state checks before the hot loop — these don't change mid-frame.
+    const bool fast_cassette = cassette_.has_data() &&
+                               (cassette_.get_load_mode() == CassetteLoadMode::Fast);
+    const bool cassette_active = cassette_.is_playing() || cassette_.is_recording();
+
     while (!master_clock_.frame_complete()) {
         // Fast cassette loading: intercept at TWO levels:
         //
@@ -64,7 +70,7 @@ void EmulatorCore::run_frame() {
         // Together these let the ROM's block framing logic run naturally
         // while bypassing all bit-level polling.
 
-        if (cassette_.get_load_mode() == CassetteLoadMode::Fast) {
+        if (fast_cassette) {
             uint16_t pc = cpu_.get_pc();
 
             if (pc == 0xF10B) {
@@ -136,7 +142,8 @@ void EmulatorCore::run_frame() {
             master_clock_.tick();
 
         audio_.tick(cycles);
-        cassette_.update_cycle(master_clock_.get_cycle_count());
+        if (cassette_active)
+            cassette_.update_cycle(master_clock_.get_cycle_count());
         handle_interrupts();
     }
 

@@ -14,6 +14,7 @@ struct GateArrayState {
     bool frame_complete = false;
     bool vsync_flag = false;
     uint8_t border_color = 0;
+    bool xrgb_mode = false;
 };
 
 class GateArray {
@@ -30,6 +31,9 @@ public:
 
     GateArrayState get_state() const;
     void set_state(const GateArrayState& state);
+
+    void set_palette_mode(bool xrgb) { state_.xrgb_mode = xrgb; }
+    bool get_palette_mode() const { return state_.xrgb_mode; }
 
     // MO5 16-color palette — see MO5_PALETTE_RGBA in types.h for the actual values
 

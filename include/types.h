@@ -72,6 +72,27 @@ constexpr uint32 MO5_PALETTE_RGBA[16] = {
     0xFF8000FF   // 15: orange
 };
 
+// MO5 16-color fixed palette in XRGB8888 format (0x00RRGGBB) for libretro
+// Each entry equals MO5_PALETTE_RGBA[i] >> 8 (drop the alpha byte)
+constexpr uint32 MO5_PALETTE_XRGB8888[16] = {
+    0x00000000,  //  0: black
+    0x00FF0000,  //  1: red
+    0x0000FF00,  //  2: green
+    0x00FFFF00,  //  3: yellow
+    0x000000FF,  //  4: blue
+    0x00FF00FF,  //  5: magenta
+    0x0000FFFF,  //  6: cyan
+    0x00FFFFFF,  //  7: white
+    0x00808080,  //  8: grey
+    0x00FF8080,  //  9: light red (pink)
+    0x0080FF80,  // 10: light green
+    0x00FFFF80,  // 11: light yellow
+    0x008080FF,  // 12: light blue
+    0x00FF80FF,  // 13: light magenta
+    0x0080FFFF,  // 14: light cyan
+    0x00FF8000   // 15: orange
+};
+
 } // namespace crayon
 
 #endif // CRAYON_TYPES_H

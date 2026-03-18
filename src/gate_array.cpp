@@ -10,6 +10,8 @@ void GateArray::reset() { state_ = GateArrayState{}; }
 void GateArray::render_frame(const uint8_t* pixel_ram, const uint8_t* color_ram) {
     if (!pixel_ram || !color_ram) return;
 
+    const uint32_t* palette = state_.xrgb_mode ? MO5_PALETTE_XRGB8888 : MO5_PALETTE_RGBA;
+
     // MO5 forme/fond rendering: 320x200, 8-pixel blocks
     // Each byte in pixel_ram = 8 pixels (1 bit each)
     // Each byte in color_ram = foreground (high nibble) + background (low nibble)
@@ -24,7 +26,7 @@ void GateArray::render_frame(const uint8_t* pixel_ram, const uint8_t* color_ram)
             for (int bit = 7; bit >= 0; --bit) {
                 int x = col * 8 + (7 - bit);
                 bool is_fg = (pixels >> bit) & 1;
-                state_.framebuffer[y][x] = MO5_PALETTE_RGBA[is_fg ? fg : bg];
+                state_.framebuffer[y][x] = palette[is_fg ? fg : bg];
             }
         }
     }
