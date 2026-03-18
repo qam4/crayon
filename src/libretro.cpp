@@ -796,6 +796,11 @@ RETRO_API bool retro_load_game(const struct retro_game_info* game) {
 
     g_emulator->reset();
 
+    // Start cassette playback after reset (reset clears playing state)
+    if (g_k7_was_loaded) {
+        g_emulator->play_cassette();
+    }
+
     // Use XRGB8888 palette directly — libretro expects XRGB8888 pixel format
     g_emulator->get_gate_array().set_palette_mode(true);
 

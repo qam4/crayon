@@ -44,6 +44,10 @@ public:
     void set_joystick_axis_mapping(crayon::MO5Key mo5_key, int joystick_id, int axis, int direction);
     JoystickInput get_joystick_mapping(crayon::MO5Key mo5_key) const;
     
+    // Keyboard joystick modifier (default: RALT)
+    void set_joystick_modifier(SDL_Scancode mod) { joystick_modifier_ = mod; }
+    SDL_Scancode get_joystick_modifier() const { return joystick_modifier_; }
+    
     // Joystick detection
     void detect_joysticks();
     std::vector<JoystickInfo> get_connected_joysticks() const;
@@ -55,6 +59,7 @@ public:
     // UI rendering
     void render_mapping_ui(SDL_Renderer* renderer, TextRenderer* text_renderer);
     bool process_mapping_ui_input(SDL_Keycode key);
+    bool process_joystick_mapping_input(const SDL_Event& event);
     void show_mapping_ui(bool show) { show_ui_ = show; }
     bool is_mapping_ui_visible() const { return show_ui_; }
 
@@ -67,9 +72,11 @@ private:
     std::map<crayon::MO5Key, JoystickInput> joystick_mappings_;
     std::map<int, SDL_Joystick*> joysticks_;
     std::map<int, JoystickInfo> joystick_info_;
+    SDL_Scancode joystick_modifier_ = SDL_SCANCODE_RALT;
     
     // UI state
     bool show_ui_ = false;
+    bool show_joystick_tab_ = false;
     int selected_key_index_ = 0;
     bool waiting_for_input_ = false;
     crayon::MO5Key selected_mo5_key_ = crayon::MO5Key::ENTER;

@@ -48,6 +48,7 @@ enum class MenuAction {
     ToggleFPS,
     ToggleDebugger,
     ToggleFullscreen,
+    InputMapping,
     Quit
 };
 

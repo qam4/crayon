@@ -79,6 +79,17 @@ bool SDLFrontend::initialize(const FrontendConfig& config) {
     }
 
     emulator_->reset();
+    
+    // Start cassette playback after reset (reset clears playing state)
+    if (!config_.cassette_path.empty()) {
+        emulator_->play_cassette();
+    }
+    
+    // Initialize input mapper and joysticks
+    input_mapper_ = std::make_unique<InputMapper>();
+    input_mapper_->load_from_config(*config_manager_);
+    init_joysticks();
+    
     running_ = true;
     return true;
 }
@@ -217,6 +228,10 @@ void SDLFrontend::render_frame() {
     
     if (progress_dialog_ && progress_dialog_->is_visible()) {
         progress_dialog_->render();
+    }
+    
+    if (input_mapper_ && input_mapper_->is_mapping_ui_visible()) {
+        input_mapper_->render_mapping_ui(renderer_, text_renderer_.get());
     }
     
     // Render status bar at bottom
@@ -375,6 +390,17 @@ void SDLFrontend::process_input() {
                 }
             }
             
+            if (input_mapper_ && input_mapper_->is_mapping_ui_visible()) {
+                if (input_mapper_->process_mapping_ui_input(event.key.keysym.sym)) {
+                    // Save config when closing the UI
+                    if (!input_mapper_->is_mapping_ui_visible()) {
+                        input_mapper_->save_to_config(*config_manager_);
+                        config_manager_->save();
+                    }
+                    continue;
+                }
+            }
+            
             // F1 = toggle menu
             if (event.key.keysym.sym == SDLK_F1) {
                 if (menu_system_->is_open()) {
@@ -448,6 +474,11 @@ void SDLFrontend::process_input() {
                     default:
                         break;
                 }
+                // Ctrl+M = Input Mapping (doesn't conflict with MO5 keys since Ctrl is checked)
+                if (event.key.keysym.sym == SDLK_m && (event.key.keysym.mod & KMOD_CTRL)) {
+                    handle_menu_action(crayon::MenuAction::InputMapping);
+                    continue;
+                }
             }
         }
         
@@ -459,6 +490,22 @@ void SDLFrontend::process_input() {
             case SDL_KEYDOWN: 
             case SDL_KEYUP:
                 handle_keyboard_event(event.key); 
+                break;
+            case SDL_JOYBUTTONDOWN:
+            case SDL_JOYBUTTONUP:
+                // Route to input mapper UI if it's capturing joystick input
+                if (input_mapper_ && input_mapper_->process_joystick_mapping_input(event))
+                    break;
+                handle_joystick_button_event(event.jbutton);
+                break;
+            case SDL_JOYAXISMOTION:
+                if (input_mapper_ && input_mapper_->process_joystick_mapping_input(event))
+                    break;
+                handle_joystick_axis_event(event.jaxis);
+                break;
+            case SDL_JOYDEVICEADDED:
+            case SDL_JOYDEVICEREMOVED:
+                init_joysticks();  // Re-enumerate on hotplug
                 break;
             case SDL_MOUSEMOTION: {
                 int w, h;
@@ -495,7 +542,7 @@ void SDLFrontend::dump_framebuffer(const std::string& /*filename*/) {
 }
 
 bool SDLFrontend::init_video() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << "\n";
         return false;
     }
@@ -547,6 +594,33 @@ void SDLFrontend::cleanup_audio() {
 
 void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
     bool pressed = (event.type == SDL_KEYDOWN);
+    
+    // Configurable modifier + arrows/keys = joystick emulation (default: Right Alt)
+    // When held, arrow keys and action keys route as joystick-only input
+    // without triggering MO5 keyboard character entry.
+    // Configurable via userdata/config.ini [Joystick] modifier=RALT|RCTRL|LGUI|RGUI
+    bool joy_mod_held = false;
+    if (input_mapper_) {
+        SDL_Scancode mod_sc = input_mapper_->get_joystick_modifier();
+        const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+        joy_mod_held = keys[mod_sc] != 0;
+    }
+    if (joy_mod_held) {
+        MO5Key mo5_key;
+        switch (event.keysym.scancode) {
+            case SDL_SCANCODE_UP:    mo5_key = MO5Key::UP; break;
+            case SDL_SCANCODE_DOWN:  mo5_key = MO5Key::DOWN; break;
+            case SDL_SCANCODE_LEFT:  mo5_key = MO5Key::LEFT; break;
+            case SDL_SCANCODE_RIGHT: mo5_key = MO5Key::RIGHT; break;
+            case SDL_SCANCODE_SPACE: mo5_key = MO5Key::SPACE; break;
+            case SDL_SCANCODE_RETURN: mo5_key = MO5Key::ENTER; break;
+            case SDL_SCANCODE_RCTRL: mo5_key = MO5Key::STOP; break;
+            default: return; // RAlt + other keys: ignore
+        }
+        emulator_->get_input_handler().set_key_state(mo5_key, pressed);
+        return; // Don't fall through to normal keyboard handler
+    }
+
     // Translate SDL2 scancode to MO5 key.
     // Mapping strategy: character-based. Press M on PC → get M on MO5.
     // The MO5 ROM's internal character table handles the rest.
@@ -633,6 +707,56 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
     emulator_->get_input_handler().set_key_state(mo5_key, pressed);
 }
 
+void SDLFrontend::init_joysticks() {
+    if (!input_mapper_) return;
+    input_mapper_->detect_joysticks();
+    auto joysticks = input_mapper_->get_connected_joysticks();
+    for (const auto& joy : joysticks) {
+        std::cout << "Joystick detected: " << joy.name
+                  << " (id=" << joy.id << ", buttons=" << joy.num_buttons
+                  << ", axes=" << joy.num_axes << ")\n";
+    }
+    if (joysticks.empty()) {
+        std::cout << "No joysticks detected\n";
+    }
+}
+
+void SDLFrontend::handle_joystick_button_event(const SDL_JoyButtonEvent& event) {
+    if (!input_mapper_ || !emulator_) return;
+    bool pressed = (event.type == SDL_JOYBUTTONDOWN);
+
+    // Search joystick mappings for this button
+    auto& input = emulator_->get_input_handler();
+    for (int i = 0; i < MO5_KEY_COUNT; ++i) {
+        auto mo5_key = static_cast<MO5Key>(i);
+        auto mapping = input_mapper_->get_joystick_mapping(mo5_key);
+        if (mapping.is_button() && mapping.joystick_id == event.which
+            && mapping.button == event.button) {
+            input.set_key_state(mo5_key, pressed);
+        }
+    }
+}
+
+void SDLFrontend::handle_joystick_axis_event(const SDL_JoyAxisEvent& event) {
+    if (!input_mapper_ || !emulator_) return;
+    auto& input = emulator_->get_input_handler();
+
+    for (int i = 0; i < MO5_KEY_COUNT; ++i) {
+        auto mo5_key = static_cast<MO5Key>(i);
+        auto mapping = input_mapper_->get_joystick_mapping(mo5_key);
+        if (mapping.is_axis() && mapping.joystick_id == event.which
+            && mapping.axis == event.axis) {
+            bool active = false;
+            if (mapping.axis_direction > 0) {
+                active = event.value > JOYSTICK_AXIS_DEADZONE;
+            } else if (mapping.axis_direction < 0) {
+                active = event.value < -JOYSTICK_AXIS_DEADZONE;
+            }
+            input.set_key_state(mo5_key, active);
+        }
+    }
+}
+
 void SDLFrontend::handle_menu_action(MenuAction action) {
     switch (action) {
         case MenuAction::LoadBasicROM:
@@ -693,6 +817,14 @@ void SDLFrontend::handle_menu_action(MenuAction action) {
             SDL_SetWindowFullscreen(window_, is_fullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
             break;
         }
+        case MenuAction::InputMapping:
+            if (input_mapper_) {
+                input_mapper_->show_mapping_ui(!input_mapper_->is_mapping_ui_visible());
+                if (input_mapper_->is_mapping_ui_visible()) {
+                    osd_renderer_->show_notification("Input Mapper (TAB: Keyboard/Joystick)", 2000);
+                }
+            }
+            break;
         case MenuAction::Quit: 
             running_ = false; 
             break;

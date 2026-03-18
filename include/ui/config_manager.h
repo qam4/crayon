@@ -50,14 +50,16 @@ public:
     std::vector<std::string> get_recent_cartridges() const;
     void add_recent_cartridge(const std::string& path);
 
+    // Generic config access (used by InputMapper and other components)
+    std::string get_value(const std::string& section, const std::string& key, const std::string& default_value) const;
+    void set_value(const std::string& section, const std::string& key, const std::string& value);
+
 private:
     bool parse_ini_file(const std::string& filepath);
     bool write_ini_file(const std::string& filepath);
 
-    std::string get_value(const std::string& section, const std::string& key, const std::string& default_value) const;
     int get_value_int(const std::string& section, const std::string& key, int default_value) const;
     bool get_value_bool(const std::string& section, const std::string& key, bool default_value) const;
-    void set_value(const std::string& section, const std::string& key, const std::string& value);
 
     std::map<std::string, std::map<std::string, std::string>> config_;
     std::string config_path_;

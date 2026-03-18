@@ -56,6 +56,12 @@ bool HeadlessFrontend::initialize(const FrontendConfig& config) {
     }
 
     emulator_->reset();
+    
+    // Start cassette playback after reset (reset clears playing state)
+    if (!config.cassette_path.empty()) {
+        emulator_->play_cassette();
+    }
+    
     running_ = true;
     std::cout << "Headless frontend initialized\n";
     return true;

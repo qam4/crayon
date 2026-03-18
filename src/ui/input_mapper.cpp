@@ -64,6 +64,20 @@ void InputMapper::init_default_mappings() {
     keyboard_mappings_[crayon::MO5Key::Key7] = SDLK_7;
     keyboard_mappings_[crayon::MO5Key::Key8] = SDLK_8;
     keyboard_mappings_[crayon::MO5Key::Key9] = SDLK_9;
+
+    // Default joystick mappings (joystick 0):
+    // Axis 0 (left stick X) → LEFT/RIGHT
+    // Axis 1 (left stick Y) → UP/DOWN
+    // Button 0 (A/Cross)    → SPACE (action)
+    // Button 1 (B/Circle)   → ENTER
+    // Button 6 (Back/Select)→ STOP
+    set_joystick_axis_mapping(crayon::MO5Key::LEFT,  0, 0, -1);
+    set_joystick_axis_mapping(crayon::MO5Key::RIGHT, 0, 0, +1);
+    set_joystick_axis_mapping(crayon::MO5Key::UP,    0, 1, -1);
+    set_joystick_axis_mapping(crayon::MO5Key::DOWN,  0, 1, +1);
+    set_joystick_button_mapping(crayon::MO5Key::SPACE, 0, 0);
+    set_joystick_button_mapping(crayon::MO5Key::ENTER, 0, 1);
+    set_joystick_button_mapping(crayon::MO5Key::STOP,  0, 6);
 }
 
 void InputMapper::set_keyboard_mapping(crayon::MO5Key mo5_key, SDL_Keycode host_key) {
@@ -134,13 +148,65 @@ std::vector<JoystickInfo> InputMapper::get_connected_joysticks() const {
     return result;
 }
 
-void InputMapper::load_from_config(ConfigManager& /*config*/) {
-    // TODO: Implement config loading
-    // For now, use default mappings
+void InputMapper::load_from_config(ConfigManager& config) {
+    // Load joystick modifier key
+    std::string mod_name = config.get_value("Joystick", "modifier", "RALT");
+    if (mod_name == "RALT") joystick_modifier_ = SDL_SCANCODE_RALT;
+    else if (mod_name == "RCTRL") joystick_modifier_ = SDL_SCANCODE_RCTRL;
+    else if (mod_name == "LGUI" || mod_name == "LWIN") joystick_modifier_ = SDL_SCANCODE_LGUI;
+    else if (mod_name == "RGUI" || mod_name == "RWIN") joystick_modifier_ = SDL_SCANCODE_RGUI;
+    else joystick_modifier_ = SDL_SCANCODE_RALT;
+
+    // Load joystick mappings from [Joystick] section
+    // Format: joy_<mo5key>=<joystick_id>,<type>,<index>[,<direction>]
+    // type: "button" or "axis"
+    // Example: joy_UP=0,axis,1,-1   joy_SPACE=0,button,0
+    for (int i = 0; i < crayon::MO5_KEY_COUNT; ++i) {
+        auto mo5_key = static_cast<crayon::MO5Key>(i);
+        std::string key_name = "joy_" + mo5_key_to_string(mo5_key);
+        std::string val = config.get_value("Joystick", key_name, "");
+        if (val.empty()) continue;
+
+        std::istringstream ss(val);
+        std::string token;
+        std::vector<std::string> parts;
+        while (std::getline(ss, token, ',')) parts.push_back(token);
+
+        if (parts.size() < 3) continue;
+        try {
+            int joy_id = std::stoi(parts[0]);
+            if (parts[1] == "button") {
+                set_joystick_button_mapping(mo5_key, joy_id, std::stoi(parts[2]));
+            } else if (parts[1] == "axis" && parts.size() >= 4) {
+                set_joystick_axis_mapping(mo5_key, joy_id, std::stoi(parts[2]), std::stoi(parts[3]));
+            }
+        } catch (...) {
+            // Skip malformed entries
+        }
+    }
 }
 
-void InputMapper::save_to_config(ConfigManager& /*config*/) {
-    // TODO: Implement config saving
+void InputMapper::save_to_config(ConfigManager& config) {
+    // Save joystick modifier
+    std::string mod_name = "RALT";
+    if (joystick_modifier_ == SDL_SCANCODE_RALT) mod_name = "RALT";
+    else if (joystick_modifier_ == SDL_SCANCODE_RCTRL) mod_name = "RCTRL";
+    else if (joystick_modifier_ == SDL_SCANCODE_LGUI) mod_name = "LGUI";
+    else if (joystick_modifier_ == SDL_SCANCODE_RGUI) mod_name = "RGUI";
+    config.set_value("Joystick", "modifier", mod_name);
+
+    for (const auto& [mo5_key, joy] : joystick_mappings_) {
+        std::string key_name = "joy_" + mo5_key_to_string(mo5_key);
+        std::ostringstream val;
+        if (joy.is_button()) {
+            val << joy.joystick_id << ",button," << joy.button;
+        } else if (joy.is_axis()) {
+            val << joy.joystick_id << ",axis," << joy.axis << "," << joy.axis_direction;
+        } else {
+            continue;
+        }
+        config.set_value("Joystick", key_name, val.str());
+    }
 }
 
 std::string InputMapper::mo5_key_to_string(crayon::MO5Key key) const {
@@ -220,47 +286,80 @@ void InputMapper::render_mapping_ui(SDL_Renderer* renderer, TextRenderer* text_r
     
     // Title
     SDL_Color white = {255, 255, 255, 255};
-    text_renderer->render_text(renderer, "Input Mapper Configuration", 
+    SDL_Color gray = {180, 180, 180, 255};
+    SDL_Color cyan = {100, 200, 255, 255};
+
+    const char* title = show_joystick_tab_ ? "Joystick Mapping" : "Keyboard Mapping";
+    text_renderer->render_text(renderer, title,
                                window_width / 2, 50, white, TextRenderer::TextAlign::Center);
     
     // Instructions
-    SDL_Color gray = {180, 180, 180, 255};
     if (waiting_for_input_) {
-        text_renderer->render_text(renderer, "Press a key to map...", 
+        const char* prompt = show_joystick_tab_
+            ? "Press a joystick button or move an axis..."
+            : "Press a key to map...";
+        text_renderer->render_text(renderer, prompt,
                                    window_width / 2, 80, gray, TextRenderer::TextAlign::Center);
     } else {
-        text_renderer->render_text(renderer, "UP/DOWN: Navigate | ENTER: Remap | R: Reset | ESC: Close", 
+        text_renderer->render_text(renderer, "UP/DOWN: Navigate | ENTER: Remap | TAB: Keyboard/Joystick | R: Reset | ESC: Close", 
                                    window_width / 2, 80, gray, TextRenderer::TextAlign::Center);
     }
-    
-    // List some key mappings
+
     int y = 120;
     int index = 0;
-    for (const auto& [mo5_key, host_key] : keyboard_mappings_) {
-        if (index == selected_key_index_) {
-            SDL_SetRenderDrawColor(renderer, 60, 60, 120, 255);
-            SDL_Rect highlight = {60, y - 2, window_width - 120, 22};
-            SDL_RenderFillRect(renderer, &highlight);
+
+    if (!show_joystick_tab_) {
+        // Keyboard mappings
+        for (const auto& [mo5_key, host_key] : keyboard_mappings_) {
+            if (index == selected_key_index_) {
+                SDL_SetRenderDrawColor(renderer, 60, 60, 120, 255);
+                SDL_Rect highlight = {60, y - 2, window_width - 120, 22};
+                SDL_RenderFillRect(renderer, &highlight);
+            }
+            std::string line = mo5_key_to_string(mo5_key) + " -> " + sdl_keycode_to_string(host_key);
+            SDL_Color color = (index == selected_key_index_) ? white : gray;
+            text_renderer->render_text(renderer, line.c_str(), 70, y, color, TextRenderer::TextAlign::Left);
+            y += 24;
+            index++;
+            if (y > window_height - 100) break;
         }
-        
-        std::string mo5_name = mo5_key_to_string(mo5_key);
-        std::string host_name = sdl_keycode_to_string(host_key);
-        std::string line = mo5_name + " -> " + host_name;
-        
-        SDL_Color color = (index == selected_key_index_) ? white : gray;
-        text_renderer->render_text(renderer, line.c_str(), 70, y, color, TextRenderer::TextAlign::Left);
-        
-        y += 24;
-        index++;
-        if (y > window_height - 100) break; // Don't overflow
+    } else {
+        // Joystick mappings
+        // Show all MO5 keys that have joystick bindings, plus common game keys without bindings
+        crayon::MO5Key game_keys[] = {
+            crayon::MO5Key::UP, crayon::MO5Key::DOWN, crayon::MO5Key::LEFT, crayon::MO5Key::RIGHT,
+            crayon::MO5Key::SPACE, crayon::MO5Key::ENTER, crayon::MO5Key::STOP,
+            crayon::MO5Key::SHIFT, crayon::MO5Key::CNT
+        };
+        for (auto mo5_key : game_keys) {
+            if (index == selected_key_index_) {
+                SDL_SetRenderDrawColor(renderer, 60, 80, 60, 255);
+                SDL_Rect highlight = {60, y - 2, window_width - 120, 22};
+                SDL_RenderFillRect(renderer, &highlight);
+            }
+            auto joy = get_joystick_mapping(mo5_key);
+            std::string binding = "(none)";
+            if (joy.is_button()) {
+                binding = "Joy" + std::to_string(joy.joystick_id) + " Btn" + std::to_string(joy.button);
+            } else if (joy.is_axis()) {
+                binding = "Joy" + std::to_string(joy.joystick_id) + " Axis" + std::to_string(joy.axis)
+                        + (joy.axis_direction > 0 ? "+" : "-");
+            }
+            std::string line = mo5_key_to_string(mo5_key) + " -> " + binding;
+            SDL_Color color = (index == selected_key_index_) ? white : cyan;
+            text_renderer->render_text(renderer, line.c_str(), 70, y, color, TextRenderer::TextAlign::Left);
+            y += 24;
+            index++;
+            if (y > window_height - 100) break;
+        }
     }
 }
 
 bool InputMapper::process_mapping_ui_input(SDL_Keycode key) {
     if (!show_ui_) return false;
     
-    if (waiting_for_input_) {
-        // Capture the key for remapping
+    if (waiting_for_input_ && !show_joystick_tab_) {
+        // Capture the key for keyboard remapping
         auto it = keyboard_mappings_.begin();
         std::advance(it, selected_key_index_);
         if (it != keyboard_mappings_.end()) {
@@ -270,25 +369,81 @@ bool InputMapper::process_mapping_ui_input(SDL_Keycode key) {
         return true;
     }
     
+    // For joystick tab, waiting_for_input_ is handled by process_joystick_mapping_input()
+    
+    int max_index;
+    if (show_joystick_tab_) {
+        max_index = 8; // 9 game keys (UP/DOWN/LEFT/RIGHT/SPACE/ENTER/STOP/SHIFT/CNT)
+    } else {
+        max_index = static_cast<int>(keyboard_mappings_.size()) - 1;
+    }
+
     switch (key) {
         case SDLK_UP:
             if (selected_key_index_ > 0) selected_key_index_--;
             return true;
         case SDLK_DOWN:
-            if (selected_key_index_ < static_cast<int>(keyboard_mappings_.size()) - 1) {
-                selected_key_index_++;
-            }
+            if (selected_key_index_ < max_index) selected_key_index_++;
             return true;
         case SDLK_RETURN:
             waiting_for_input_ = true;
             return true;
+        case SDLK_TAB:
+            show_joystick_tab_ = !show_joystick_tab_;
+            selected_key_index_ = 0;
+            waiting_for_input_ = false;
+            return true;
         case SDLK_r:
-            reset_keyboard_mappings();
+            if (show_joystick_tab_) {
+                joystick_mappings_.clear();
+                // Re-apply defaults
+                set_joystick_axis_mapping(crayon::MO5Key::LEFT,  0, 0, -1);
+                set_joystick_axis_mapping(crayon::MO5Key::RIGHT, 0, 0, +1);
+                set_joystick_axis_mapping(crayon::MO5Key::UP,    0, 1, -1);
+                set_joystick_axis_mapping(crayon::MO5Key::DOWN,  0, 1, +1);
+                set_joystick_button_mapping(crayon::MO5Key::SPACE, 0, 0);
+                set_joystick_button_mapping(crayon::MO5Key::ENTER, 0, 1);
+                set_joystick_button_mapping(crayon::MO5Key::STOP,  0, 6);
+            } else {
+                reset_keyboard_mappings();
+            }
             return true;
         case SDLK_ESCAPE:
             show_ui_ = false;
             return true;
     }
     
+    return false;
+}
+
+bool InputMapper::process_joystick_mapping_input(const SDL_Event& event) {
+    if (!show_ui_ || !show_joystick_tab_ || !waiting_for_input_) return false;
+
+    // Map selected_key_index_ back to the MO5Key
+    crayon::MO5Key game_keys[] = {
+        crayon::MO5Key::UP, crayon::MO5Key::DOWN, crayon::MO5Key::LEFT, crayon::MO5Key::RIGHT,
+        crayon::MO5Key::SPACE, crayon::MO5Key::ENTER, crayon::MO5Key::STOP,
+        crayon::MO5Key::SHIFT, crayon::MO5Key::CNT
+    };
+    if (selected_key_index_ < 0 || selected_key_index_ >= 9) return false;
+    crayon::MO5Key target = game_keys[selected_key_index_];
+
+    if (event.type == SDL_JOYBUTTONDOWN) {
+        set_joystick_button_mapping(target, event.jbutton.which, event.jbutton.button);
+        waiting_for_input_ = false;
+        return true;
+    }
+    if (event.type == SDL_JOYAXISMOTION) {
+        // Only capture if axis is pushed past deadzone
+        if (event.jaxis.value > 16000) {
+            set_joystick_axis_mapping(target, event.jaxis.which, event.jaxis.axis, +1);
+            waiting_for_input_ = false;
+            return true;
+        } else if (event.jaxis.value < -16000) {
+            set_joystick_axis_mapping(target, event.jaxis.which, event.jaxis.axis, -1);
+            waiting_for_input_ = false;
+            return true;
+        }
+    }
     return false;
 }

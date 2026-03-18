@@ -52,7 +52,7 @@ void EmulatorCore::run_frame() {
     master_clock_.clear_frame_complete();
 
     // Hoist cassette state checks before the hot loop — these don't change mid-frame.
-    const bool fast_cassette = cassette_.has_data() &&
+    const bool fast_cassette = !cassette_.get_state().k7_data.empty() &&
                                (cassette_.get_load_mode() == CassetteLoadMode::Fast);
     const bool cassette_active = cassette_.is_playing() || cassette_.is_recording();
 

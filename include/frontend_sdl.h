@@ -7,6 +7,7 @@
 #include "debugger_ui.h"
 #include "ui/osd_renderer.h"
 #include "ui/imgui_debugger_ui.h"
+#include "ui/input_mapper.h"
 #include <SDL.h>
 #include <memory>
 #include <vector>
@@ -90,12 +91,18 @@ private:
 
     bool init_video();
     bool init_audio();
+    void init_joysticks();
     void cleanup_video();
     void cleanup_audio();
     void handle_keyboard_event(const SDL_KeyboardEvent& event);
+    void handle_joystick_button_event(const SDL_JoyButtonEvent& event);
+    void handle_joystick_axis_event(const SDL_JoyAxisEvent& event);
     void handle_menu_action(MenuAction action);
 
     static void audio_callback(void* userdata, uint8_t* stream, int len);
+
+    std::unique_ptr<InputMapper> input_mapper_;
+    static constexpr int16_t JOYSTICK_AXIS_DEADZONE = 8000;
 };
 
 } // namespace crayon
