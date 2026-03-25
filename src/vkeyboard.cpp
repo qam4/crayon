@@ -1,4 +1,5 @@
 #include "vkeyboard.h"
+#include "vkeyboard_font.h"
 #include <algorithm>
 #include <cstring>
 
@@ -14,7 +15,7 @@ namespace crayon {
 
 const VKBKey VirtualKeyboard::LAYOUT[] = {
     // Row 0: STOP 1 2 3 4 5 6 7 8 9 0 + ACC ACC2 EFF
-    { MO5Key::STOP,  "STOP", 0,  0, 1 },
+    { MO5Key::STOP,  "STP", 0,  0, 1 },
     { MO5Key::Key1,  "1",    0,  1, 1 },
     { MO5Key::Key2,  "2",    0,  2, 1 },
     { MO5Key::Key3,  "3",    0,  3, 1 },
@@ -27,7 +28,7 @@ const VKBKey VirtualKeyboard::LAYOUT[] = {
     { MO5Key::Key0,  "0",    0, 10, 1 },
     { MO5Key::PLUS,  "+",    0, 11, 1 },
     { MO5Key::ACC,   "ACC",  0, 12, 1 },
-    { MO5Key::ACC2,  "ACC2", 0, 13, 1 },
+    { MO5Key::ACC2,  "AC2", 0, 13, 1 },
     { MO5Key::EFF,   "EFF",  0, 14, 1 },
 
     // Row 1: CNT A Z E R T Y U I O P * ENT
@@ -171,6 +172,38 @@ MO5Key VirtualKeyboard::press_selected() {
     return get_selected_key();
 }
 
+// 5x7 bitmap font character drawing (from vkeyboard_font.h)
+void VirtualKeyboard::draw_char(uint32_t* fb, int fb_w, int fb_h,
+                                int x, int y, char ch, uint32_t color, uint8_t alpha) const {
+    if (ch < 32 || ch > 127) return;
+    const uint8_t* glyph = FONT_DATA[ch - 32];
+    uint8_t fg_r = (color >> 16) & 0xFF;
+    uint8_t fg_g = (color >>  8) & 0xFF;
+    uint8_t fg_b =  color        & 0xFF;
+
+    for (int row = 0; row < FONT_CHAR_HEIGHT; ++row) {
+        int py = y + row;
+        if (py < 0 || py >= fb_h) continue;
+        uint8_t bits = glyph[row];
+        for (int col = 0; col < FONT_CHAR_WIDTH; ++col) {
+            if (!(bits & (0x80 >> col))) continue;
+            int px = x + col;
+            if (px < 0 || px >= fb_w) continue;
+            int idx = py * fb_w + px;
+            fb[idx] = blend_pixel(fb[idx], (fg_r << 16) | (fg_g << 8) | fg_b, alpha);
+        }
+    }
+}
+
+void VirtualKeyboard::draw_label(uint32_t* fb, int fb_w, int fb_h,
+                                 int x, int y, const char* text, uint32_t color, uint8_t alpha) const {
+    int cx = x;
+    for (const char* p = text; *p; ++p) {
+        draw_char(fb, fb_w, fb_h, cx, y, *p, color, alpha);
+        cx += FONT_CHAR_WIDTH + 1;
+    }
+}
+
 uint32_t VirtualKeyboard::blend_pixel(uint32_t bg, uint32_t fg, uint8_t alpha) const {
     if (alpha == 255) return fg;
     if (alpha == 0) return bg;
@@ -202,8 +235,8 @@ void VirtualKeyboard::render(uint32_t* framebuffer, int fb_width, int fb_height)
         default:                               alpha = 255; break;
     }
 
-    const int vkb_height = 50;  // 5 rows x 10px each
-    const int row_height = 10;
+    const int vkb_height = 55;  // 5 rows x 11px each
+    const int row_height = 11;
     const int key_width = fb_width / MAX_COL_COUNT;
 
     int y_offset;
@@ -241,25 +274,16 @@ void VirtualKeyboard::render(uint32_t* framebuffer, int fb_width, int fb_height)
             }
         }
 
-        // Draw label — simple block characters (each char is ~3x5 pixels)
+        // Draw label using 5x7 bitmap font
         const char* label = key.label;
-        int label_len = static_cast<int>(std::strlen(label));
-        int char_w = 4;  // pixels per character width
-        int char_h = 5;  // pixels per character height
-        int text_x = kx + (kw - label_len * char_w) / 2;
-        int text_y = ky + (kh - char_h) / 2;
+        int label_len = 0;
+        for (const char* p = label; *p; ++p) ++label_len;
+        int text_w = label_len * (FONT_CHAR_WIDTH + 1) - 1;
+        int text_x = kx + (kw - text_w) / 2;
+        int text_y = ky + (kh - FONT_CHAR_HEIGHT) / 2;
 
-        // Draw each character as a small filled block (enough to identify keys)
-        for (int c = 0; c < label_len; ++c) {
-            int cx = text_x + c * char_w;
-            // Draw a simple 3x5 block for each character
-            for (int py = text_y + 1; py < text_y + char_h && py < fb_height && py >= 0; ++py) {
-                for (int px = cx; px < cx + 3 && px < fb_width && px >= 0; ++px) {
-                    int idx = py * fb_width + px;
-                    framebuffer[idx] = blend_pixel(framebuffer[idx], text_col, alpha);
-                }
-            }
-        }
+        draw_label(framebuffer, fb_width, fb_height,
+                   text_x, text_y, label, text_col, alpha);
     }
 }
 

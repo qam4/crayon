@@ -442,7 +442,7 @@ RETRO_API void retro_get_system_av_info(struct retro_system_av_info* info) {
     info->geometry.base_height = crayon::DISPLAY_HEIGHT;
     info->geometry.max_width = crayon::DISPLAY_WIDTH;
     info->geometry.max_height = crayon::DISPLAY_HEIGHT;
-    info->geometry.aspect_ratio = 4.0f / 3.0f;
+    info->geometry.aspect_ratio = 0.0f;  // Use pixel aspect ratio (320/200 = 8:5, square pixels)
     info->timing.fps = 50.0;
     info->timing.sample_rate = 48000.0;
 }

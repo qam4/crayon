@@ -57,6 +57,8 @@ private:
     int get_key_index(int row, int col) const;
     void clamp_cursor();
     uint32_t blend_pixel(uint32_t bg, uint32_t fg, uint8_t alpha) const;
+    void draw_char(uint32_t* fb, int fb_w, int fb_h, int x, int y, char ch, uint32_t color, uint8_t alpha) const;
+    void draw_label(uint32_t* fb, int fb_w, int fb_h, int x, int y, const char* text, uint32_t color, uint8_t alpha) const;
 };
 
 } // namespace crayon
