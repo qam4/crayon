@@ -628,9 +628,9 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
     // Punctuation maps by closest character match.
     MO5Key mo5_key;
     switch (event.keysym.scancode) {
-        // Top letter row: QWERTY Q-W-E-R-T-Y -> MO5 A-Z-E-R-T-Y
-        case SDL_SCANCODE_Q: mo5_key = MO5Key::A; break;
-        case SDL_SCANCODE_W: mo5_key = MO5Key::Z; break;
+        // Letter keys — direct mapping, MO5Key names match MO5 AZERTY labels
+        case SDL_SCANCODE_Q: mo5_key = MO5Key::Q; break;
+        case SDL_SCANCODE_W: mo5_key = MO5Key::W; break;
         case SDL_SCANCODE_E: mo5_key = MO5Key::E; break;
         case SDL_SCANCODE_R: mo5_key = MO5Key::R; break;
         case SDL_SCANCODE_T: mo5_key = MO5Key::T; break;
@@ -639,8 +639,8 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
         case SDL_SCANCODE_I: mo5_key = MO5Key::I; break;
         case SDL_SCANCODE_O: mo5_key = MO5Key::O; break;
         case SDL_SCANCODE_P: mo5_key = MO5Key::P; break;
-        // Home row: QWERTY A-S-D-F-G-H-J-K-L -> MO5 Q-S-D-F-G-H-J-K-L
-        case SDL_SCANCODE_A: mo5_key = MO5Key::Q; break;
+        // Home row
+        case SDL_SCANCODE_A: mo5_key = MO5Key::A; break;
         case SDL_SCANCODE_S: mo5_key = MO5Key::S; break;
         case SDL_SCANCODE_D: mo5_key = MO5Key::D; break;
         case SDL_SCANCODE_F: mo5_key = MO5Key::F; break;
@@ -649,23 +649,22 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
         case SDL_SCANCODE_J: mo5_key = MO5Key::J; break;
         case SDL_SCANCODE_K: mo5_key = MO5Key::K; break;
         case SDL_SCANCODE_L: mo5_key = MO5Key::L; break;
-        // Bottom row: QWERTY Z-X-C-V-B-N -> MO5 W-X-C-V-B-N
-        case SDL_SCANCODE_Z: mo5_key = MO5Key::W; break;
+        // Bottom row
+        case SDL_SCANCODE_Z: mo5_key = MO5Key::Z; break;
         case SDL_SCANCODE_X: mo5_key = MO5Key::X; break;
         case SDL_SCANCODE_C: mo5_key = MO5Key::C; break;
         case SDL_SCANCODE_V: mo5_key = MO5Key::V; break;
         case SDL_SCANCODE_B: mo5_key = MO5Key::B; break;
         case SDL_SCANCODE_N: mo5_key = MO5Key::N; break;
-        case SDL_SCANCODE_M: mo5_key = MO5Key::SLASH; break;         // MO5 scancode 0x1A produces 'M'
+        case SDL_SCANCODE_M: mo5_key = MO5Key::M; break;
         // Punctuation — mapped by character, not physical position.
         // MO5Key names are confusing: they're named after AZERTY labels,
         // not the characters they produce. Comments show the actual output.
-        case SDL_SCANCODE_COMMA:  mo5_key = MO5Key::M; break;        // MO5 scancode 0x08 produces ','
-        case SDL_SCANCODE_PERIOD: mo5_key = MO5Key::COMMA; break;    // MO5 scancode 0x10 produces '.'
-        case SDL_SCANCODE_SEMICOLON: mo5_key = MO5Key::PLUS; break;  // MO5 scancode 0x2E produces ';' (via SHIFT)
-        case SDL_SCANCODE_SLASH:  mo5_key = MO5Key::SLASH; break;    // MO5 scancode 0x1A: SHIFT produces '/'
-        case SDL_SCANCODE_LEFTBRACKET: mo5_key = MO5Key::STAR; break; // MO5 scancode 0x24 produces '*'
-        case SDL_SCANCODE_RIGHTBRACKET: mo5_key = MO5Key::AT; break;  // MO5 scancode 0x18 produces '@'
+        case SDL_SCANCODE_COMMA:  mo5_key = MO5Key::COMMA; break;
+        case SDL_SCANCODE_PERIOD: mo5_key = MO5Key::PERIOD; break;
+        case SDL_SCANCODE_SLASH:  mo5_key = MO5Key::DIV; break;       // PC '/' → MO5 '/'
+        case SDL_SCANCODE_LEFTBRACKET: mo5_key = MO5Key::AT; break;   // PC '[' → MO5 '@'
+        case SDL_SCANCODE_RIGHTBRACKET: mo5_key = MO5Key::ACC; break; // PC ']' → MO5 ACC (accent)
         // Digit row
         case SDL_SCANCODE_0: mo5_key = MO5Key::Key0; break;
         case SDL_SCANCODE_1: mo5_key = MO5Key::Key1; break;
@@ -680,13 +679,11 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
         // Special keys
         case SDL_SCANCODE_SPACE:     mo5_key = MO5Key::SPACE; break;
         case SDL_SCANCODE_RETURN:    mo5_key = MO5Key::ENTER; break;
-        case SDL_SCANCODE_BACKSPACE: mo5_key = MO5Key::ACC2; break;
+        case SDL_SCANCODE_BACKSPACE: mo5_key = MO5Key::BACKSPACE; break;
         case SDL_SCANCODE_DELETE:    mo5_key = MO5Key::EFF; break;
-        case SDL_SCANCODE_GRAVE:     mo5_key = MO5Key::ACC; break;    // MO5 ACC (accent) key — ` is accent on PC
         case SDL_SCANCODE_TAB:       mo5_key = MO5Key::STOP; break;
         case SDL_SCANCODE_MINUS:     mo5_key = MO5Key::MINUS; break;
-        case SDL_SCANCODE_EQUALS:    mo5_key = MO5Key::PLUS; break;
-        case SDL_SCANCODE_APOSTROPHE: mo5_key = MO5Key::Key2; break;  // SHIFT = "
+        case SDL_SCANCODE_KP_MULTIPLY: mo5_key = MO5Key::STAR; break; // Numpad '*' → MO5 '*'
         // Arrows
         case SDL_SCANCODE_UP:    mo5_key = MO5Key::UP; break;
         case SDL_SCANCODE_DOWN:  mo5_key = MO5Key::DOWN; break;
@@ -700,8 +697,8 @@ void SDLFrontend::handle_keyboard_event(const SDL_KeyboardEvent& event) {
         case SDL_SCANCODE_RSHIFT: mo5_key = MO5Key::BASIC; break;
         case SDL_SCANCODE_LCTRL:  mo5_key = MO5Key::CNT; break;
         case SDL_SCANCODE_RCTRL:  mo5_key = MO5Key::CNT; break;
-        case SDL_SCANCODE_LALT:   mo5_key = MO5Key::DOT; break;
-        case SDL_SCANCODE_RALT:   mo5_key = MO5Key::DOT; break;
+        case SDL_SCANCODE_LALT:   mo5_key = MO5Key::RAZ; break;
+        case SDL_SCANCODE_RALT:   mo5_key = MO5Key::RAZ; break;
         default: return; // Unmapped key
     }
     emulator_->get_input_handler().set_key_state(mo5_key, pressed);

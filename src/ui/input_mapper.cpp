@@ -19,7 +19,7 @@ void InputMapper::init_default_mappings() {
     keyboard_mappings_[crayon::MO5Key::STOP] = SDLK_ESCAPE;
     keyboard_mappings_[crayon::MO5Key::SHIFT] = SDLK_LSHIFT;
     keyboard_mappings_[crayon::MO5Key::CNT] = SDLK_LCTRL;
-    keyboard_mappings_[crayon::MO5Key::ACC] = SDLK_LALT;
+    keyboard_mappings_[crayon::MO5Key::STAR] = SDLK_LALT;
     keyboard_mappings_[crayon::MO5Key::UP] = SDLK_UP;
     keyboard_mappings_[crayon::MO5Key::DOWN] = SDLK_DOWN;
     keyboard_mappings_[crayon::MO5Key::LEFT] = SDLK_LEFT;
@@ -215,7 +215,7 @@ std::string InputMapper::mo5_key_to_string(crayon::MO5Key key) const {
         case crayon::MO5Key::STOP: return "STOP";
         case crayon::MO5Key::SHIFT: return "SHIFT";
         case crayon::MO5Key::CNT: return "CNT";
-        case crayon::MO5Key::ACC: return "ACC";
+        case crayon::MO5Key::STAR: return "STAR";
         case crayon::MO5Key::UP: return "UP";
         case crayon::MO5Key::DOWN: return "DOWN";
         case crayon::MO5Key::LEFT: return "LEFT";

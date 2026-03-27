@@ -246,6 +246,8 @@ if(BUILD_TESTS)
         tests/test_placeholder.cpp
         tests/test_cpu_interrupts.cpp
         tests/test_perf_properties.cpp
+        tests/test_vkeyboard.cpp
+        tests/test_vkeyboard_props.cpp
     )
     
     target_link_libraries(crayon_tests crayon_core gtest_main rapidcheck)

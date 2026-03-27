@@ -25,6 +25,16 @@ static retro_log_printf_t log_cb;
 
 static crayon::VirtualKeyboard g_vkb;
 static bool g_select_prev = false;          // Edge detection for SELECT toggle
+
+// VKB edge detection state
+static bool g_vkb_prev_up = false;
+static bool g_vkb_prev_down = false;
+static bool g_vkb_prev_left = false;
+static bool g_vkb_prev_right = false;
+static bool g_vkb_prev_b = false;
+static bool g_vkb_prev_a = false;
+static bool g_vkb_prev_y = false;
+
 static int16_t g_stereo_buf[960 * 2];       // 960 stereo frames per PAL frame
 static uint32_t g_vkb_framebuffer[crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT];
 
@@ -32,6 +42,11 @@ static uint32_t g_vkb_framebuffer[crayon::DISPLAY_WIDTH * crayon::DISPLAY_HEIGHT
 static bool g_vkb_key_pending_release = false;
 static crayon::MO5Key g_vkb_pending_key = crayon::MO5Key::SPACE;
 static bool g_vkb_shift_was_active = false;
+static crayon::MO5Key g_vkb_pending_modifier = crayon::MO5Key::SPACE;  // SPACE = no modifier
+
+// ACC sequence: ACC is press-then-release, then key press (not simultaneous)
+static bool g_vkb_acc_pending = false;       // ACC was pressed, waiting to press the key
+static crayon::MO5Key g_vkb_acc_key = crayon::MO5Key::SPACE;  // Key to press after ACC release
 
 // ---------------------------------------------------------------------------
 // Core options
@@ -77,10 +92,8 @@ struct RetroKeyMapping {
 };
 
 static const RetroKeyMapping g_key_map[] = {
-    // Letters — AZERTY: physical QWERTY positions map to AZERTY letters
-    // The retro_key values represent physical key positions (QWERTY layout)
-    // We map them to MO5 AZERTY scancodes
-    { RETROK_a,     crayon::MO5Key::Q },    // PC 'A' key → MO5 'Q' (AZERTY)
+    // Letters — MO5Key enum names now match MO5 AZERTY labels directly
+    { RETROK_a,     crayon::MO5Key::A },
     { RETROK_b,     crayon::MO5Key::B },
     { RETROK_c,     crayon::MO5Key::C },
     { RETROK_d,     crayon::MO5Key::D },
@@ -92,20 +105,20 @@ static const RetroKeyMapping g_key_map[] = {
     { RETROK_j,     crayon::MO5Key::J },
     { RETROK_k,     crayon::MO5Key::K },
     { RETROK_l,     crayon::MO5Key::L },
-    { RETROK_m,     crayon::MO5Key::SLASH },  // PC 'M' → MO5 'M' (scancode SLASH)
+    { RETROK_m,     crayon::MO5Key::M },
     { RETROK_n,     crayon::MO5Key::N },
     { RETROK_o,     crayon::MO5Key::O },
     { RETROK_p,     crayon::MO5Key::P },
-    { RETROK_q,     crayon::MO5Key::A },    // PC 'Q' → MO5 'A' (AZERTY)
+    { RETROK_q,     crayon::MO5Key::Q },
     { RETROK_r,     crayon::MO5Key::R },
     { RETROK_s,     crayon::MO5Key::S },
     { RETROK_t,     crayon::MO5Key::T },
     { RETROK_u,     crayon::MO5Key::U },
     { RETROK_v,     crayon::MO5Key::V },
-    { RETROK_w,     crayon::MO5Key::Z },    // PC 'W' → MO5 'Z' (AZERTY)
+    { RETROK_w,     crayon::MO5Key::W },
     { RETROK_x,     crayon::MO5Key::X },
     { RETROK_y,     crayon::MO5Key::Y },
-    { RETROK_z,     crayon::MO5Key::W },    // PC 'Z' → MO5 'W' (AZERTY)
+    { RETROK_z,     crayon::MO5Key::Z },
 
     // Digits
     { RETROK_0,     crayon::MO5Key::Key0 },
@@ -122,12 +135,12 @@ static const RetroKeyMapping g_key_map[] = {
     // Special keys
     { RETROK_RETURN,    crayon::MO5Key::ENTER },
     { RETROK_SPACE,     crayon::MO5Key::SPACE },
-    { RETROK_BACKSPACE, crayon::MO5Key::ACC2 },
+    { RETROK_BACKSPACE, crayon::MO5Key::BACKSPACE },  // PC Backspace → MO5 < (backspace)
     { RETROK_TAB,       crayon::MO5Key::STOP },
     { RETROK_ESCAPE,    crayon::MO5Key::STOP },
     { RETROK_DELETE,    crayon::MO5Key::EFF },
     { RETROK_INSERT,    crayon::MO5Key::INS },
-    { RETROK_HOME,      crayon::MO5Key::RAZ },
+    { RETROK_HOME,      crayon::MO5Key::RAZ },        // PC Home → MO5 RAZ
 
     // Arrow keys
     { RETROK_UP,    crayon::MO5Key::UP },
@@ -140,17 +153,15 @@ static const RetroKeyMapping g_key_map[] = {
     { RETROK_RSHIFT, crayon::MO5Key::BASIC },
     { RETROK_LCTRL,  crayon::MO5Key::CNT },
 
-    // Punctuation
-    { RETROK_COMMA,     crayon::MO5Key::M },      // PC ',' → MO5 ','
-    { RETROK_PERIOD,    crayon::MO5Key::COMMA },   // PC '.' → MO5 '.'
-    { RETROK_SEMICOLON, crayon::MO5Key::SLASH },   // PC ';' → MO5 'M'
-    { RETROK_MINUS,     crayon::MO5Key::MINUS },
-    { RETROK_EQUALS,    crayon::MO5Key::PLUS },
-    { RETROK_ASTERISK,  crayon::MO5Key::STAR },
-    { RETROK_SLASH,     crayon::MO5Key::DOT },
-    { RETROK_AT,        crayon::MO5Key::AT },
-    { RETROK_LEFTBRACKET,  crayon::MO5Key::STAR },
-    { RETROK_RIGHTBRACKET, crayon::MO5Key::ACC },
+    // Punctuation — only map keys that have a direct MO5 equivalent
+    { RETROK_COMMA,     crayon::MO5Key::COMMA },    // PC ',' → MO5 ','
+    { RETROK_PERIOD,    crayon::MO5Key::PERIOD },   // PC '.' → MO5 '.'
+    { RETROK_MINUS,     crayon::MO5Key::MINUS },    // PC '-' → MO5 '-'
+    { RETROK_EQUALS,    crayon::MO5Key::PLUS },     // PC '=' → MO5 '+'
+    { RETROK_SLASH,     crayon::MO5Key::DIV },      // PC '/' → MO5 '/'
+    { RETROK_ASTERISK,  crayon::MO5Key::STAR },     // PC '*' → MO5 '*'
+    { RETROK_AT,        crayon::MO5Key::AT },       // PC '@' → MO5 '@'
+    { RETROK_RIGHTBRACKET, crayon::MO5Key::ACC },   // PC ']' → MO5 ACC (accent)
 };
 
 static constexpr int KEY_MAP_SIZE = sizeof(g_key_map) / sizeof(g_key_map[0]);
@@ -280,49 +291,72 @@ static void process_retropad_input(bool suppress_keys = false) {
     // Release pending VKB key from previous frame — always active
     if (g_vkb_key_pending_release) {
         input.set_key_state(g_vkb_pending_key, false);
-        if (g_vkb_shift_was_active)
-            input.set_key_state(crayon::MO5Key::SHIFT, false);
+        if (g_vkb_pending_modifier != crayon::MO5Key::SPACE)
+            input.set_key_state(g_vkb_pending_modifier, false);
         g_vkb_key_pending_release = false;
+    }
+
+    // ACC sequence: ACC was pressed last frame, now release ACC and press the key
+    if (g_vkb_acc_pending) {
+        input.set_key_state(crayon::MO5Key::ACC, false);
+        input.set_key_state(g_vkb_acc_key, true);
+        g_vkb_key_pending_release = true;
+        g_vkb_pending_key = g_vkb_acc_key;
+        g_vkb_pending_modifier = crayon::MO5Key::SPACE;
+        g_vkb_acc_pending = false;
     }
 
     // Skip RetroPad→MO5 key mapping when physical keyboard is active
     if (suppress_keys) return;
 
     if (g_vkb.is_visible()) {
-        // VKB navigation mode
-        // D-pad moves cursor (edge-detected would be better, but simple press works)
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP))
-            g_vkb.move_cursor(0, -1);
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN))
-            g_vkb.move_cursor(0, 1);
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT))
-            g_vkb.move_cursor(-1, 0);
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT))
-            g_vkb.move_cursor(1, 0);
+        // VKB navigation mode — edge-detected D-pad
+        bool cur_up = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP) != 0;
+        bool cur_down = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN) != 0;
+        bool cur_left = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT) != 0;
+        bool cur_right = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT) != 0;
+        bool cur_b = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B) != 0;
+        bool cur_a = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A) != 0;
+        bool cur_y = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y) != 0;
 
-        // B → press selected key
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B)) {
+        if (cur_up && !g_vkb_prev_up) g_vkb.move_cursor(crayon::Direction::Up);
+        if (cur_down && !g_vkb_prev_down) g_vkb.move_cursor(crayon::Direction::Down);
+        if (cur_left && !g_vkb_prev_left) g_vkb.move_cursor(crayon::Direction::Left);
+        if (cur_right && !g_vkb_prev_right) g_vkb.move_cursor(crayon::Direction::Right);
+
+        // B → press selected key (edge-detected)
+        if (cur_b && !g_vkb_prev_b) {
             crayon::MO5Key key = g_vkb.press_selected();
-            bool shift = g_vkb.is_shift_active();
-            if (shift)
-                input.set_key_state(crayon::MO5Key::SHIFT, true);
+            crayon::MO5Key mod = g_vkb.active_modifier();
+            if (mod != crayon::MO5Key::SPACE)
+                input.set_key_state(mod, true);
             input.set_key_state(key, true);
-            // Schedule release next frame
             g_vkb_key_pending_release = true;
             g_vkb_pending_key = key;
-            g_vkb_shift_was_active = shift;
-            // Clear shift after use
-            if (shift) g_vkb.toggle_shift();
+            g_vkb_pending_modifier = mod;
+            if (g_vkb.is_shift_active()) g_vkb.toggle_shift();
+            if (g_vkb.is_basic_active()) g_vkb.toggle_basic();
+            if (g_vkb.is_acc_active()) g_vkb.toggle_acc();
+            if (g_vkb.is_cnt_active()) g_vkb.toggle_cnt();
         }
 
-        // A → toggle shift
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A))
-            g_vkb.toggle_shift();
+        // A → toggle shift (edge-detected)
+        if (cur_a && !g_vkb_prev_a) g_vkb.toggle_shift();
 
-        // Y → toggle position
-        if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y))
-            g_vkb.toggle_position();
+        // Y → toggle position (edge-detected)
+        if (cur_y && !g_vkb_prev_y) g_vkb.toggle_position();
+
+        g_vkb_prev_up = cur_up;
+        g_vkb_prev_down = cur_down;
+        g_vkb_prev_left = cur_left;
+        g_vkb_prev_right = cur_right;
+        g_vkb_prev_b = cur_b;
+        g_vkb_prev_a = cur_a;
+        g_vkb_prev_y = cur_y;
     } else {
+        // Reset edge detection state when VKB is hidden
+        g_vkb_prev_up = g_vkb_prev_down = g_vkb_prev_left = g_vkb_prev_right = false;
+        g_vkb_prev_b = g_vkb_prev_a = g_vkb_prev_y = false;
         // Normal RetroPad mode: D-pad → arrows, B → SPACE, A → ENTER, Start → STOP
         input.set_key_state(crayon::MO5Key::UP,
             input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP) != 0);
@@ -396,6 +430,8 @@ static bool process_keyboard_input() {
 // ---------------------------------------------------------------------------
 // Helper: process light pen pointer
 // ---------------------------------------------------------------------------
+static bool g_vkb_prev_pointer = false;  // Edge detection for pointer click on VKB
+
 static void process_pointer_input() {
     if (!g_emulator) return;
 
@@ -408,6 +444,55 @@ static void process_pointer_input() {
     int y = static_cast<int>((static_cast<int32_t>(py) + 32768) * 199 / 65535);
     x = std::clamp(x, 0, 319);
     y = std::clamp(y, 0, 199);
+
+    // VKB click: when pointer is pressed on a VKB key, select and press it
+    if (g_vkb.is_visible() && pressed && !g_vkb_prev_pointer) {
+        int hit = g_vkb.hit_test(x, y, crayon::DISPLAY_HEIGHT);
+        if (hit >= 0) {
+            // Move cursor to clicked key (visual highlight)
+            g_vkb.set_cursor_index(hit);
+            crayon::MO5Key key = g_vkb.get_key_at(hit);
+
+            // Modifier clicks: toggle if no modifier active, otherwise treat as regular key
+            bool is_modifier_key = (key == crayon::MO5Key::SHIFT ||
+                                    key == crayon::MO5Key::BASIC ||
+                                    key == crayon::MO5Key::ACC ||
+                                    hit == 13 ||  // ACC key (backup check)
+                                    key == crayon::MO5Key::CNT);
+            bool has_active_mod = (g_vkb.active_modifier() != crayon::MO5Key::SPACE);
+
+            if (is_modifier_key && !has_active_mod) {
+                // No modifier active — toggle this one
+                if (key == crayon::MO5Key::SHIFT) g_vkb.toggle_shift();
+                else if (key == crayon::MO5Key::BASIC) g_vkb.toggle_basic();
+                else if (hit == 13 || key == crayon::MO5Key::ACC) g_vkb.toggle_acc();
+                else if (key == crayon::MO5Key::CNT) g_vkb.toggle_cnt();
+            } else if (!g_vkb_key_pending_release && !g_vkb_acc_pending) {
+                auto& input = g_emulator->get_input_handler();
+                crayon::MO5Key mod = g_vkb.active_modifier();
+
+                if (mod == crayon::MO5Key::ACC) {
+                    // ACC sequence: press ACC now, key next frame
+                    input.set_key_state(crayon::MO5Key::ACC, true);
+                    g_vkb_acc_pending = true;
+                    g_vkb_acc_key = key;
+                    g_vkb.toggle_acc();
+                } else {
+                    // Normal modifier: press simultaneously
+                    if (mod != crayon::MO5Key::SPACE)
+                        input.set_key_state(mod, true);
+                    input.set_key_state(key, true);
+                    g_vkb_key_pending_release = true;
+                    g_vkb_pending_key = key;
+                    g_vkb_pending_modifier = mod;
+                    if (g_vkb.is_shift_active()) g_vkb.toggle_shift();
+                    if (g_vkb.is_basic_active()) g_vkb.toggle_basic();
+                    if (g_vkb.is_cnt_active()) g_vkb.toggle_cnt();
+                }
+            }
+        }
+    }
+    g_vkb_prev_pointer = pressed;
 
     auto& lp = g_emulator->get_light_pen();
     lp.set_mouse_position(x, y, crayon::DISPLAY_WIDTH, crayon::DISPLAY_HEIGHT);

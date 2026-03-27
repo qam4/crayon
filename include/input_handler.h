@@ -24,7 +24,7 @@ enum class MO5Key : uint8_t {
     Key7    = 0x06,
     Key6    = 0x07,
 
-    M       = 0x08,  // , on Thomson keyboard
+    COMMA   = 0x08,  // , (comma) on MO5 keyboard
     INS     = 0x09,
     K       = 0x0A,
     G       = 0x0B,
@@ -33,8 +33,8 @@ enum class MO5Key : uint8_t {
     Key8    = 0x0E,
     Key5    = 0x0F,
 
-    COMMA   = 0x10,  // . on Thomson keyboard
-    RAZ     = 0x11,  // Home/Reset
+    PERIOD  = 0x10,  // . (period) on MO5 keyboard
+    BACKSPACE = 0x11,  // Backspace key (< on MO5 keyboard)
     L       = 0x12,
     F       = 0x13,
     O       = 0x14,
@@ -44,7 +44,7 @@ enum class MO5Key : uint8_t {
 
     AT      = 0x18,  // @ (period key on PC maps here)
     RIGHT   = 0x19,
-    SLASH   = 0x1A,  // M on Thomson keyboard / semicolon on PC
+    M       = 0x1A,  // M on MO5 keyboard
     D       = 0x1B,
     P       = 0x1C,
     E       = 0x1D,
@@ -55,27 +55,27 @@ enum class MO5Key : uint8_t {
     DOWN    = 0x21,
     B       = 0x22,
     S       = 0x23,
-    STAR    = 0x24,  // * (left bracket on PC)
-    W       = 0x25,
+    DIV     = 0x24,  // / (divide) key on MO5 keyboard
+    Z       = 0x25,  // MO5 AZERTY: Z key (produces Z)
     MINUS   = 0x26,
     Key2    = 0x27,
 
     X       = 0x28,
     LEFT    = 0x29,
     V       = 0x2A,
-    A       = 0x2B,
-    ACC     = 0x2C,  // Accent / * key
-    Q       = 0x2D,
+    Q       = 0x2B,  // MO5 AZERTY: Q key (produces Q)
+    STAR    = 0x2C,  // * (multiply) key on MO5 keyboard
+    A       = 0x2D,  // MO5 AZERTY: A key (produces A)
     PLUS    = 0x2E,  // + (equals on PC)
     Key1    = 0x2F,
 
-    Z       = 0x30,
+    W       = 0x30,  // MO5 AZERTY: W key (produces W)
     UP      = 0x31,
     C       = 0x32,
-    DOT     = 0x33,  // RAZ on alt mapping; also used for dot
+    RAZ     = 0x33,  // RAZ (Home/Clear) key on MO5 keyboard
     ENTER   = 0x34,
     CNT     = 0x35,  // CTRL
-    ACC2    = 0x36,  // ACC (backspace on PC)
+    ACC     = 0x36,  // ACC (accent) key on MO5 keyboard
     STOP    = 0x37,  // STOP (tab on PC)
 
     SHIFT   = 0x38,  // Yellow/Left shift key

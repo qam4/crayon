@@ -5,91 +5,81 @@
 
 namespace crayon {
 
-// MO5 AZERTY keyboard layout — 58 keys across 5 rows + 2 extra keys (INS, RAZ)
-// Row 0: STOP 1 2 3 4 5 6 7 8 9 0 + ACC ACC2 EFF  (15 keys)
-// Row 1: CNT  A Z E R T Y U I O P *  ENT           (13 keys)
-// Row 2: SHIFT Q S D F G H J K L M @               (12 keys)
-// Row 3: BASIC W X C V B N , . / <- -> ^ v INS RAZ (16 keys)
-// Row 4: SPACE                                       (1 key, wide)
-// Total: 15 + 13 + 12 + 16 + 1 = 57 entries but INS and RAZ bring us to 58 unique MO5Keys
+// Complete 58-key layout for the Thomson MO5 virtual keyboard.
+// Each entry: { label, x, y, width, height, mo5_key, nav_up, nav_down, nav_left, nav_right }
+// Coordinates are relative to VKB top-left (0,0).
+// Nav links: index into LAYOUT[], or -1 for no neighbor.
+const VKBKey VirtualKeyboard::LAYOUT[KEY_COUNT] = {
+    // Row 0 (15 keys): y=2, h=17
+    /*  0 */ { "STP",   2,  2, 20, 17, MO5Key::STOP,   -1, 15,  -1,   1 },
+    /*  1 */ { "1",    22,  2, 20, 17, MO5Key::Key1,   -1, 16,   0,   2 },
+    /*  2 */ { "2",    42,  2, 20, 17, MO5Key::Key2,   -1, 17,   1,   3 },
+    /*  3 */ { "3",    62,  2, 20, 17, MO5Key::Key3,   -1, 18,   2,   4 },
+    /*  4 */ { "4",    82,  2, 20, 17, MO5Key::Key4,   -1, 19,   3,   5 },
+    /*  5 */ { "5",   102,  2, 20, 17, MO5Key::Key5,   -1, 20,   4,   6 },
+    /*  6 */ { "6",   122,  2, 20, 17, MO5Key::Key6,   -1, 21,   5,   7 },
+    /*  7 */ { "7",   142,  2, 20, 17, MO5Key::Key7,   -1, 22,   6,   8 },
+    /*  8 */ { "8",   162,  2, 20, 17, MO5Key::Key8,   -1, 23,   7,   9 },
+    /*  9 */ { "9",   182,  2, 20, 17, MO5Key::Key9,   -1, 24,   8,  10 },
+    /* 10 */ { "0",   202,  2, 20, 17, MO5Key::Key0,   -1, 25,   9,  11 },
+    /* 11 */ { "-",   222,  2, 20, 17, MO5Key::MINUS,  -1, 26,  10,  12 },
+    /* 12 */ { "+",   242,  2, 20, 17, MO5Key::PLUS,   -1, 27,  11,  13 },
+    /* 13 */ { "ACC", 262,  2, 20, 17, MO5Key::ACC,    -1, 28,  12,  14 },
+    /* 14 */ { "^",   282,  2, 20, 17, MO5Key::UP,     -1, 29,  13,  -1 },
 
-const VKBKey VirtualKeyboard::LAYOUT[] = {
-    // Row 0: STOP 1 2 3 4 5 6 7 8 9 0 + ACC ACC2 EFF
-    { MO5Key::STOP,  "STP", 0,  0, 1 },
-    { MO5Key::Key1,  "1",    0,  1, 1 },
-    { MO5Key::Key2,  "2",    0,  2, 1 },
-    { MO5Key::Key3,  "3",    0,  3, 1 },
-    { MO5Key::Key4,  "4",    0,  4, 1 },
-    { MO5Key::Key5,  "5",    0,  5, 1 },
-    { MO5Key::Key6,  "6",    0,  6, 1 },
-    { MO5Key::Key7,  "7",    0,  7, 1 },
-    { MO5Key::Key8,  "8",    0,  8, 1 },
-    { MO5Key::Key9,  "9",    0,  9, 1 },
-    { MO5Key::Key0,  "0",    0, 10, 1 },
-    { MO5Key::PLUS,  "+",    0, 11, 1 },
-    { MO5Key::ACC,   "ACC",  0, 12, 1 },
-    { MO5Key::ACC2,  "AC2", 0, 13, 1 },
-    { MO5Key::EFF,   "EFF",  0, 14, 1 },
+    // Row 1 (15 keys): y=20, h=17 — 10px gap after CNT
+    /* 15 */ { "CNT",   2, 20, 20, 17, MO5Key::CNT,     0, 30,  -1,  16 },
+    /* 16 */ { "A",    32, 20, 20, 17, MO5Key::A,       1, 32,  15,  17 },
+    /* 17 */ { "Z",    52, 20, 20, 17, MO5Key::Z,       2, 33,  16,  18 },
+    /* 18 */ { "E",    72, 20, 20, 17, MO5Key::E,       3, 34,  17,  19 },
+    /* 19 */ { "R",    92, 20, 20, 17, MO5Key::R,       4, 35,  18,  20 },
+    /* 20 */ { "T",   112, 20, 20, 17, MO5Key::T,       5, 36,  19,  21 },
+    /* 21 */ { "Y",   132, 20, 20, 17, MO5Key::Y,       6, 37,  20,  22 },
+    /* 22 */ { "U",   152, 20, 20, 17, MO5Key::U,       7, 38,  21,  23 },
+    /* 23 */ { "I",   172, 20, 20, 17, MO5Key::I,       8, 39,  22,  24 },
+    /* 24 */ { "O",   192, 20, 20, 17, MO5Key::O,       9, 40,  23,  25 },
+    /* 25 */ { "P",   212, 20, 20, 17, MO5Key::P,      10, 41,  24,  26 },
+    /* 26 */ { "/",   232, 20, 20, 17, MO5Key::DIV,    11, 42,  25,  27 },
+    /* 27 */ { "*",   252, 20, 20, 17, MO5Key::STAR,   12, 42,  26,  28 },
+    /* 28 */ { "<-",  272, 20, 20, 17, MO5Key::LEFT,   13, 43,  27,  29 },
+    /* 29 */ { "->",  292, 20, 20, 17, MO5Key::RIGHT,  14, 43,  28,  -1 },
 
-    // Row 1: CNT A Z E R T Y U I O P * ENT
-    { MO5Key::CNT,   "CNT",  1,  0, 1 },
-    { MO5Key::A,     "A",    1,  1, 1 },
-    { MO5Key::Z,     "Z",    1,  2, 1 },
-    { MO5Key::E,     "E",    1,  3, 1 },
-    { MO5Key::R,     "R",    1,  4, 1 },
-    { MO5Key::T,     "T",    1,  5, 1 },
-    { MO5Key::Y,     "Y",    1,  6, 1 },
-    { MO5Key::U,     "U",    1,  7, 1 },
-    { MO5Key::I,     "I",    1,  8, 1 },
-    { MO5Key::O,     "O",    1,  9, 1 },
-    { MO5Key::P,     "P",    1, 10, 1 },
-    { MO5Key::STAR,  "*",    1, 11, 1 },
-    { MO5Key::ENTER, "ENT",  1, 12, 1 },
+    // Row 2 (14 keys): y=38, h=17
+    /* 30 */ { "RAZ",   2, 38, 20, 17, MO5Key::RAZ,    15, 44,  -1,  31 },
+    /* 31 */ { "<",    22, 38, 20, 17, MO5Key::BACKSPACE, 16, 45,  30,  32 },
+    /* 32 */ { "Q",    42, 38, 20, 17, MO5Key::Q,      17, 46,  31,  33 },
+    /* 33 */ { "S",    62, 38, 20, 17, MO5Key::S,      18, 47,  32,  34 },
+    /* 34 */ { "D",    82, 38, 20, 17, MO5Key::D,      19, 48,  33,  35 },
+    /* 35 */ { "F",   102, 38, 20, 17, MO5Key::F,      20, 49,  34,  36 },
+    /* 36 */ { "G",   122, 38, 20, 17, MO5Key::G,      21, 50,  35,  37 },
+    /* 37 */ { "H",   142, 38, 20, 17, MO5Key::H,      22, 51,  36,  38 },
+    /* 38 */ { "J",   162, 38, 20, 17, MO5Key::J,      23, 52,  37,  39 },
+    /* 39 */ { "K",   182, 38, 20, 17, MO5Key::K,      24, 53,  38,  40 },
+    /* 40 */ { "L",   202, 38, 20, 17, MO5Key::L,      25, 54,  39,  41 },
+    /* 41 */ { "M",   222, 38, 20, 17, MO5Key::M,      26, 54,  40,  42 },
+    /* 42 */ { "ENT", 242, 38, 30, 17, MO5Key::ENTER,  27, 55,  41,  43 },
+    /* 43 */ { "v",   282, 38, 20, 17, MO5Key::DOWN,   29, 56,  42,  -1 },
 
-    // Row 2: SHIFT Q S D F G H J K L M @
-    { MO5Key::SHIFT, "SHF",  2,  0, 1 },
-    { MO5Key::Q,     "Q",    2,  1, 1 },
-    { MO5Key::S,     "S",    2,  2, 1 },
-    { MO5Key::D,     "D",    2,  3, 1 },
-    { MO5Key::F,     "F",    2,  4, 1 },
-    { MO5Key::G,     "G",    2,  5, 1 },
-    { MO5Key::H,     "H",    2,  6, 1 },
-    { MO5Key::J,     "J",    2,  7, 1 },
-    { MO5Key::K,     "K",    2,  8, 1 },
-    { MO5Key::L,     "L",    2,  9, 1 },
-    { MO5Key::SLASH, "M",    2, 10, 1 },
-    { MO5Key::AT,    "@",    2, 11, 1 },
+    // Row 3 (13 keys): y=56, h=17 — SHIFT is 40px wide, then 10px gap
+    /* 44 */ { "",      2, 56, 40, 17, MO5Key::SHIFT,  30, 57,  -1,  45 },
+    /* 45 */ { "W",    52, 56, 20, 17, MO5Key::W,      31, 57,  44,  46 },
+    /* 46 */ { "X",    72, 56, 20, 17, MO5Key::X,      32, 57,  45,  47 },
+    /* 47 */ { "C",    92, 56, 20, 17, MO5Key::C,      33, 57,  46,  48 },
+    /* 48 */ { "V",   112, 56, 20, 17, MO5Key::V,      34, 57,  47,  49 },
+    /* 49 */ { "B",   132, 56, 20, 17, MO5Key::B,      35, 57,  48,  50 },
+    /* 50 */ { "N",   152, 56, 20, 17, MO5Key::N,      36, 57,  49,  51 },
+    /* 51 */ { ",",   172, 56, 20, 17, MO5Key::COMMA,  37, 57,  50,  52 },
+    /* 52 */ { ".",   192, 56, 20, 17, MO5Key::PERIOD,  38, 57,  51,  53 },
+    /* 53 */ { "@",   212, 56, 20, 17, MO5Key::AT,     39, 57,  52,  54 },
+    /* 54 */ { "BAS", 232, 56, 40, 17, MO5Key::BASIC,  40, 57,  53,  55 },
+    /* 55 */ { "INS", 272, 56, 20, 17, MO5Key::INS,    42, -1,  54,  56 },
+    /* 56 */ { "EFF", 292, 56, 20, 17, MO5Key::EFF,    43, -1,  55,  -1 },
 
-    // Row 3: BASIC W X C V B N , . / <- -> ^ v INS RAZ
-    { MO5Key::BASIC, "BAS",  3,  0, 1 },
-    { MO5Key::W,     "W",    3,  1, 1 },
-    { MO5Key::X,     "X",    3,  2, 1 },
-    { MO5Key::C,     "C",    3,  3, 1 },
-    { MO5Key::V,     "V",    3,  4, 1 },
-    { MO5Key::B,     "B",    3,  5, 1 },
-    { MO5Key::N,     "N",    3,  6, 1 },
-    { MO5Key::M,     ",",    3,  7, 1 },
-    { MO5Key::COMMA, ".",    3,  8, 1 },
-    { MO5Key::DOT,   "/",    3,  9, 1 },
-    { MO5Key::LEFT,  "<-",   3, 10, 1 },
-    { MO5Key::RIGHT, "->",   3, 11, 1 },
-    { MO5Key::UP,    "^",    3, 12, 1 },
-    { MO5Key::DOWN,  "v",    3, 13, 1 },
-    { MO5Key::INS,   "INS",  3, 14, 1 },
-    { MO5Key::RAZ,   "RAZ",  3, 15, 1 },
-
-    // Row 4: SPACE (wide key)
-    { MO5Key::SPACE, "SPACE", 4, 0, 6 },
-
-    // MINUS key (not in main rows above, add to row 0 area — but we already have 15 keys there)
-    // Actually MINUS is the - key on MO5, mapped to Key0 area. Let's check: we have 57 entries above.
-    // The 58th key is MINUS (0x26). Add it to row 0 after EFF.
-    { MO5Key::MINUS, "-",    0, 15, 1 },
+    // Row 4 (1 key): y=74, h=17
+    /* 57 */ { "SPC", 102, 74,  80, 17, MO5Key::SPACE, 47, -1,  -1,  -1 },
 };
 
-// Row sizes: row0=16, row1=13, row2=12, row3=16, row4=1
-const int VirtualKeyboard::ROW_COUNT = 5;
-const int VirtualKeyboard::MAX_COL_COUNT = 16;
+// --- Stub implementations (to be filled in tasks 2.2, 2.3, 2.4, 4.1, 4.2, 4.3) ---
 
 VirtualKeyboard::VirtualKeyboard() = default;
 
@@ -101,8 +91,91 @@ bool VirtualKeyboard::is_visible() const {
     return visible_;
 }
 
+void VirtualKeyboard::move_cursor(Direction dir) {
+    int next = -1;
+    switch (dir) {
+        case Direction::Up:    next = LAYOUT[cursor_index_].nav_up;    break;
+        case Direction::Down:  next = LAYOUT[cursor_index_].nav_down;  break;
+        case Direction::Left:  next = LAYOUT[cursor_index_].nav_left;  break;
+        case Direction::Right: next = LAYOUT[cursor_index_].nav_right; break;
+    }
+    if (next >= 0 && next < KEY_COUNT) {
+        cursor_index_ = next;
+    }
+}
+
+MO5Key VirtualKeyboard::press_selected() const {
+    int idx = std::clamp(cursor_index_, 0, KEY_COUNT - 1);
+    return LAYOUT[idx].mo5_key;
+}
+
+int VirtualKeyboard::get_cursor_index() const {
+    return cursor_index_;
+}
+
+int VirtualKeyboard::hit_test(int x, int y, int fb_height) const {
+    int y_off = get_y_offset(fb_height);
+    int x_off = get_x_offset(320);  // framebuffer width is always 320
+    int adj_y = y - y_off;
+    int adj_x = x - x_off;
+    for (int i = 0; i < KEY_COUNT; ++i) {
+        const auto& k = LAYOUT[i];
+        if (adj_x >= k.x && adj_x < k.x + k.width &&
+            adj_y >= k.y && adj_y < k.y + k.height) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+MO5Key VirtualKeyboard::get_key_at(int index) const {
+    if (index < 0 || index >= KEY_COUNT) return MO5Key::SPACE;
+    return LAYOUT[index].mo5_key;
+}
+
+void VirtualKeyboard::set_cursor_index(int index) {
+    if (index >= 0 && index < KEY_COUNT)
+        cursor_index_ = index;
+}
+
 void VirtualKeyboard::toggle_shift() {
     shift_active_ = !shift_active_;
+}
+
+bool VirtualKeyboard::is_shift_active() const {
+    return shift_active_;
+}
+
+void VirtualKeyboard::toggle_basic() {
+    basic_active_ = !basic_active_;
+}
+
+bool VirtualKeyboard::is_basic_active() const {
+    return basic_active_;
+}
+
+void VirtualKeyboard::toggle_acc() {
+    acc_active_ = !acc_active_;
+}
+
+bool VirtualKeyboard::is_acc_active() const {
+    return acc_active_;
+}
+
+void VirtualKeyboard::toggle_cnt() {
+    cnt_active_ = !cnt_active_;
+}
+
+bool VirtualKeyboard::is_cnt_active() const {
+    return cnt_active_;
+}
+
+MO5Key VirtualKeyboard::active_modifier() const {
+    if (shift_active_) return MO5Key::SHIFT;
+    if (basic_active_) return MO5Key::BASIC;
+    if (acc_active_) return MO5Key::ACC;
+    if (cnt_active_) return MO5Key::CNT;
+    return MO5Key::SPACE;  // sentinel: no modifier
 }
 
 void VirtualKeyboard::toggle_position() {
@@ -113,74 +186,135 @@ void VirtualKeyboard::set_position(VKBPosition pos) {
     position_ = pos;
 }
 
-void VirtualKeyboard::set_transparency(VKBTransparency t) {
-    transparency_ = t;
-}
-
 VKBPosition VirtualKeyboard::get_position() const {
     return position_;
 }
 
-bool VirtualKeyboard::is_shift_active() const {
-    return shift_active_;
+void VirtualKeyboard::set_transparency(VKBTransparency t) {
+    transparency_ = t;
 }
 
-// Helper: get the number of columns in a given row
-static int row_col_count(int row) {
-    // Count keys in each row from the LAYOUT
-    static const int counts[] = { 16, 13, 12, 16, 1 };
-    if (row < 0 || row >= VirtualKeyboard::ROW_COUNT) return 0;
-    return counts[row];
+VKBTransparency VirtualKeyboard::get_transparency() const {
+    return transparency_;
 }
 
-int VirtualKeyboard::get_key_index(int row, int col) const {
-    constexpr int total = sizeof(LAYOUT) / sizeof(LAYOUT[0]);
-    for (int i = 0; i < total; ++i) {
-        if (LAYOUT[i].row == row && LAYOUT[i].col == col)
-            return i;
+void VirtualKeyboard::render(uint32_t* framebuffer, int fb_width, int fb_height) const {
+    if (!visible_ || framebuffer == nullptr) return;
+
+    int y_offset = get_y_offset(fb_height);
+    int x_offset = get_x_offset(fb_width);
+
+    // Compute alpha from transparency level
+    uint8_t alpha;
+    switch (transparency_) {
+        case VKBTransparency::Opaque:          alpha = 255; break;
+        case VKBTransparency::SemiTransparent: alpha = 160; break;
+        case VKBTransparency::Transparent:     alpha = 80;  break;
+        default:                               alpha = 255; break;
     }
-    return -1;
-}
 
-void VirtualKeyboard::clamp_cursor() {
-    if (cursor_row_ < 0) cursor_row_ = 0;
-    if (cursor_row_ >= ROW_COUNT) cursor_row_ = ROW_COUNT - 1;
+    // Draw panel background
+    draw_rect(framebuffer, fb_width, fb_height,
+              x_offset, y_offset, VKB_WIDTH, VKB_HEIGHT,
+              vkb_colors::PANEL, alpha);
 
-    int cols = row_col_count(cursor_row_);
-    if (cursor_col_ < 0) cursor_col_ = 0;
-    if (cursor_col_ >= cols) cursor_col_ = cols - 1;
-}
+    // Draw each key
+    int idx = std::clamp(cursor_index_, 0, KEY_COUNT - 1);
+    for (int i = 0; i < KEY_COUNT; ++i) {
+        const auto& key = LAYOUT[i];
 
-void VirtualKeyboard::move_cursor(int dx, int dy) {
-    cursor_col_ += dx;
-    cursor_row_ += dy;
-    clamp_cursor();
-}
+        // Determine face color and text color
+        uint32_t face_color;
+        uint32_t text_color;
+        bool draw_text = true;
 
-MO5Key VirtualKeyboard::get_selected_key() const {
-    int idx = get_key_index(cursor_row_, cursor_col_);
-    if (idx >= 0) return LAYOUT[idx].mo5_key;
-    // Fallback: return first key in current row
-    constexpr int total = sizeof(LAYOUT) / sizeof(LAYOUT[0]);
-    for (int i = 0; i < total; ++i) {
-        if (LAYOUT[i].row == cursor_row_) return LAYOUT[i].mo5_key;
+        if (i == idx) {
+            // Cursor is on this key
+            face_color = vkb_colors::CURSOR;
+            text_color = vkb_colors::CURSOR_TEXT;
+        } else if (key.mo5_key == MO5Key::SHIFT && shift_active_) {
+            face_color = vkb_colors::CURSOR;
+            text_color = vkb_colors::CURSOR_TEXT;
+        } else if (key.mo5_key == MO5Key::SHIFT) {
+            face_color = vkb_colors::KEY_SHIFT;
+            draw_text = false;
+        } else if (key.mo5_key == MO5Key::BASIC && basic_active_) {
+            face_color = vkb_colors::CURSOR;
+            text_color = vkb_colors::CURSOR_TEXT;
+        } else if (key.mo5_key == MO5Key::BASIC) {
+            face_color = vkb_colors::KEY_BASIC;
+            text_color = vkb_colors::TEXT;
+        } else if (i == 13 && acc_active_) {  // ACC key at index 13
+            face_color = vkb_colors::CURSOR;
+            text_color = vkb_colors::CURSOR_TEXT;
+        } else if (key.mo5_key == MO5Key::CNT && cnt_active_) {
+            face_color = vkb_colors::CURSOR;
+            text_color = vkb_colors::CURSOR_TEXT;
+        } else {
+            face_color = vkb_colors::KEY_FACE;
+            text_color = vkb_colors::TEXT;
+        }
+
+        // Draw key border (full key rect)
+        draw_rect(framebuffer, fb_width, fb_height,
+                  key.x + x_offset, key.y + y_offset, key.width, key.height,
+                  vkb_colors::BORDER, alpha);
+
+        // Draw key face (inset by 1px)
+        draw_rect(framebuffer, fb_width, fb_height,
+                  key.x + x_offset + 1, key.y + y_offset + 1, key.width - 2, key.height - 2,
+                  face_color, alpha);
+
+        // Draw label (centered)
+        if (draw_text && key.label && key.label[0] != '\0') {
+            int label_len = static_cast<int>(std::strlen(key.label));
+            int text_pixel_width = label_len * 6 - 1;
+            int text_x = key.x + x_offset + (key.width - text_pixel_width) / 2;
+            int text_y = key.y + y_offset + (key.height - FONT_CHAR_HEIGHT) / 2;
+            draw_label(framebuffer, fb_width, fb_height,
+                       text_x, text_y, key.label, text_color, alpha);
+        }
     }
-    return MO5Key::SPACE;
 }
 
-MO5Key VirtualKeyboard::press_selected() {
-    return get_selected_key();
+int VirtualKeyboard::get_y_offset(int fb_height) const {
+    if (position_ == VKBPosition::Top) return 0;
+    return fb_height - VKB_HEIGHT;
 }
 
-// 5x7 bitmap font character drawing (from vkeyboard_font.h)
+int VirtualKeyboard::get_x_offset(int fb_width) const {
+    return (fb_width - VKB_WIDTH) / 2;
+}
+
+uint32_t VirtualKeyboard::blend_pixel(uint32_t bg, uint32_t fg, uint8_t alpha) const {
+    if (alpha == 255) return fg;
+    if (alpha == 0) return bg;
+    uint8_t inv = 255 - alpha;
+    uint8_t r = static_cast<uint8_t>(((fg >> 16 & 0xFF) * alpha + (bg >> 16 & 0xFF) * inv) / 255);
+    uint8_t g = static_cast<uint8_t>(((fg >>  8 & 0xFF) * alpha + (bg >>  8 & 0xFF) * inv) / 255);
+    uint8_t b = static_cast<uint8_t>(((fg       & 0xFF) * alpha + (bg       & 0xFF) * inv) / 255);
+    return (r << 16) | (g << 8) | b;
+}
+
+void VirtualKeyboard::draw_rect(uint32_t* fb, int fb_w, int fb_h,
+                                int x, int y, int w, int h,
+                                uint32_t color, uint8_t alpha) const {
+    int x0 = std::max(x, 0);
+    int y0 = std::max(y, 0);
+    int x1 = std::min(x + w, fb_w);
+    int y1 = std::min(y + h, fb_h);
+    for (int py = y0; py < y1; ++py) {
+        for (int px = x0; px < x1; ++px) {
+            fb[py * fb_w + px] = blend_pixel(fb[py * fb_w + px], color, alpha);
+        }
+    }
+}
+
 void VirtualKeyboard::draw_char(uint32_t* fb, int fb_w, int fb_h,
-                                int x, int y, char ch, uint32_t color, uint8_t alpha) const {
+                                int x, int y, char ch,
+                                uint32_t color, uint8_t alpha) const {
     if (ch < 32 || ch > 127) return;
     const uint8_t* glyph = FONT_DATA[ch - 32];
-    uint8_t fg_r = (color >> 16) & 0xFF;
-    uint8_t fg_g = (color >>  8) & 0xFF;
-    uint8_t fg_b =  color        & 0xFF;
-
     for (int row = 0; row < FONT_CHAR_HEIGHT; ++row) {
         int py = y + row;
         if (py < 0 || py >= fb_h) continue;
@@ -190,100 +324,19 @@ void VirtualKeyboard::draw_char(uint32_t* fb, int fb_w, int fb_h,
             int px = x + col;
             if (px < 0 || px >= fb_w) continue;
             int idx = py * fb_w + px;
-            fb[idx] = blend_pixel(fb[idx], (fg_r << 16) | (fg_g << 8) | fg_b, alpha);
+            fb[idx] = blend_pixel(fb[idx], color, alpha);
         }
     }
 }
 
 void VirtualKeyboard::draw_label(uint32_t* fb, int fb_w, int fb_h,
-                                 int x, int y, const char* text, uint32_t color, uint8_t alpha) const {
+                                 int x, int y, const char* text,
+                                 uint32_t color, uint8_t alpha) const {
+    if (!text) return;
     int cx = x;
     for (const char* p = text; *p; ++p) {
         draw_char(fb, fb_w, fb_h, cx, y, *p, color, alpha);
-        cx += FONT_CHAR_WIDTH + 1;
-    }
-}
-
-uint32_t VirtualKeyboard::blend_pixel(uint32_t bg, uint32_t fg, uint8_t alpha) const {
-    if (alpha == 255) return fg;
-    if (alpha == 0) return bg;
-
-    uint32_t bg_r = (bg >> 16) & 0xFF;
-    uint32_t bg_g = (bg >>  8) & 0xFF;
-    uint32_t bg_b =  bg        & 0xFF;
-
-    uint32_t fg_r = (fg >> 16) & 0xFF;
-    uint32_t fg_g = (fg >>  8) & 0xFF;
-    uint32_t fg_b =  fg        & 0xFF;
-
-    uint32_t inv = 255 - alpha;
-    uint32_t r = (fg_r * alpha + bg_r * inv) / 255;
-    uint32_t g = (fg_g * alpha + bg_g * inv) / 255;
-    uint32_t b = (fg_b * alpha + bg_b * inv) / 255;
-
-    return (r << 16) | (g << 8) | b;
-}
-
-void VirtualKeyboard::render(uint32_t* framebuffer, int fb_width, int fb_height) {
-    if (!visible_ || !framebuffer) return;
-
-    uint8_t alpha;
-    switch (transparency_) {
-        case VKBTransparency::Opaque:          alpha = 255; break;
-        case VKBTransparency::SemiTransparent: alpha = 160; break;
-        case VKBTransparency::Transparent:     alpha = 80;  break;
-        default:                               alpha = 255; break;
-    }
-
-    const int vkb_height = 55;  // 5 rows x 11px each
-    const int row_height = 11;
-    const int key_width = fb_width / MAX_COL_COUNT;
-
-    int y_offset;
-    if (position_ == VKBPosition::Top) {
-        y_offset = 0;
-    } else {
-        y_offset = fb_height - vkb_height;
-    }
-
-    const uint32_t key_bg    = 0x00404040;  // Dark gray
-    const uint32_t key_hi    = 0x004080FF;  // Bright blue (highlighted)
-    const uint32_t text_col  = 0x00FFFFFF;  // White text
-    const uint32_t border_col = 0x00202020; // Dark border
-
-    constexpr int total_keys = sizeof(LAYOUT) / sizeof(LAYOUT[0]);
-
-    for (int i = 0; i < total_keys; ++i) {
-        const VKBKey& key = LAYOUT[i];
-
-        int kx = key.col * key_width;
-        int ky = y_offset + key.row * row_height;
-        int kw = key.width * key_width;
-        int kh = row_height;
-
-        bool highlighted = (key.row == cursor_row_ && key.col == cursor_col_);
-        uint32_t bg_color = highlighted ? key_hi : key_bg;
-
-        // Draw key background with 1px border
-        for (int py = ky; py < ky + kh && py < fb_height && py >= 0; ++py) {
-            for (int px = kx; px < kx + kw && px < fb_width; ++px) {
-                bool is_border = (py == ky || py == ky + kh - 1 || px == kx || px == kx + kw - 1);
-                uint32_t color = is_border ? border_col : bg_color;
-                int idx = py * fb_width + px;
-                framebuffer[idx] = blend_pixel(framebuffer[idx], color, alpha);
-            }
-        }
-
-        // Draw label using 5x7 bitmap font
-        const char* label = key.label;
-        int label_len = 0;
-        for (const char* p = label; *p; ++p) ++label_len;
-        int text_w = label_len * (FONT_CHAR_WIDTH + 1) - 1;
-        int text_x = kx + (kw - text_w) / 2;
-        int text_y = ky + (kh - FONT_CHAR_HEIGHT) / 2;
-
-        draw_label(framebuffer, fb_width, fb_height,
-                   text_x, text_y, label, text_col, alpha);
+        cx += FONT_CHAR_WIDTH + 1;  // 6px stride
     }
 }
 
