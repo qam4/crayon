@@ -52,7 +52,7 @@ void MessageDialog::render() {
     int window_width, window_height;
     SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
     
-    int box_width = 500;
+    int box_width = std::min(500, window_width - 40);
     int box_height = 200;
     int box_x = (window_width - box_width) / 2;
     int box_y = (window_height - box_height) / 2;
@@ -117,7 +117,7 @@ void ConfirmDialog::render() {
     int window_width, window_height;
     SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
     
-    int box_width = 500;
+    int box_width = std::min(500, window_width - 40);
     int box_height = 220;
     int box_x = (window_width - box_width) / 2;
     int box_y = (window_height - box_height) / 2;
@@ -163,7 +163,7 @@ void ConfirmDialog::render() {
     
     // Render instructions
     SDL_Color instruction_color = {150, 150, 150, 255};
-    text_renderer_->render_text(renderer_, "[LEFT/RIGHT: Select | ENTER: Confirm | ESC: Cancel]", 
+    text_renderer_->render_text(renderer_, "[LEFT/RIGHT | ENTER | ESC]", 
                                 box_x + box_width / 2, box_y + box_height - 20, 
                                 instruction_color, TextRenderer::TextAlign::Center);
 }
@@ -193,7 +193,7 @@ void ProgressDialog::render() {
     int window_width, window_height;
     SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
     
-    int box_width = 500;
+    int box_width = std::min(500, window_width - 40);
     int box_height = 150;
     int box_x = (window_width - box_width) / 2;
     int box_y = (window_height - box_height) / 2;
@@ -209,7 +209,7 @@ void ProgressDialog::render() {
                                 message_color, TextRenderer::TextAlign::Center);
     
     // Render progress bar background
-    int bar_width = 400;
+    int bar_width = box_width - 60;
     int bar_height = 30;
     int bar_x = box_x + (box_width - bar_width) / 2;
     int bar_y = box_y + 70;
