@@ -199,7 +199,7 @@ void SaveStateManagerUI::render_ui(const std::string& /*cartridge_name*/) {
     
     // Title
     SDL_Color white = {255, 255, 255, 255};
-    std::string title = is_save_mode_ ? "Save State" : "Load State";
+    std::string title = (is_save_mode_ ? "Save State" : "Load State") + std::string(" - ") + game_name_;
     text_renderer_->render_text(renderer_, title.c_str(), 
                                 window_width / 2, 50, white, TextRenderer::TextAlign::Center);
     
