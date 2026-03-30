@@ -49,7 +49,22 @@ enum class MenuAction {
     ToggleDebugger,
     ToggleFullscreen,
     InputMapping,
-    Quit
+    Quit,
+    // Video Settings
+    VideoSettings,
+    ScalingFilterNearest,
+    ScalingFilterLinear,
+    AspectRatioOriginal,
+    AspectRatio4_3,
+    AspectRatioStretch,
+    // Audio Settings
+    AudioSettings,
+    Volume0, Volume10, Volume20, Volume30, Volume40,
+    Volume50, Volume60, Volume70, Volume80, Volume90, Volume100,
+    ToggleMute,
+    // Input Settings
+    InputSettings,
+    SwapJoysticks
 };
 
 class Frontend {

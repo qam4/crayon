@@ -59,19 +59,14 @@ void OSDRenderer::render_status_bar(const std::string& text) {
     int window_width, window_height;
     SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
     
-    // Measure text dimensions
-    int text_width = text_renderer_->measure_text_width(text.c_str());
+    // Status bar is 20px at the bottom of the window
+    static constexpr int STATUS_BAR_HEIGHT = 20;
+    int bar_y = window_height - STATUS_BAR_HEIGHT;
+    
+    // Center text vertically within the status bar
     int text_height = text_renderer_->get_font_height();
-    
-    // Position at bottom left
     int x = PADDING;
-    int y = window_height - text_height - PADDING;
-    
-    // Semi-transparent background
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, opacity_ / 2);
-    SDL_Rect bg = {x - 5, y - 2, text_width + 10, text_height + 4};
-    SDL_RenderFillRect(renderer_, &bg);
+    int y = bar_y + (STATUS_BAR_HEIGHT - text_height) / 2;
     
     // Apply opacity
     SDL_Color color = {200, 200, 200, opacity_};

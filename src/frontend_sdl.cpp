@@ -410,6 +410,7 @@ void SDLFrontend::process_input() {
                 if (menu_system_->is_open()) {
                     menu_system_->close();
                 } else {
+                    menu_system_->update_save_state_slots(save_state_manager_.get(), get_game_name());
                     menu_system_->open();
                 }
                 continue;
@@ -462,14 +463,18 @@ void SDLFrontend::process_input() {
                         osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
                         continue;
                     case SDLK_F9:
-                        save_state_manager_->set_game_name(get_game_name());
-                        save_state_manager_->set_mode(true);
-                        save_state_manager_->show_ui(true);
+                        if (save_state_manager_) {
+                            auto result = save_state_manager_->save_state(0, get_game_name());
+                            osd_renderer_->show_notification(
+                                result.is_ok() ? "State saved to slot 0" : "Save failed", 1500);
+                        }
                         continue;
                     case SDLK_F10:
-                        save_state_manager_->set_game_name(get_game_name());
-                        save_state_manager_->set_mode(false);
-                        save_state_manager_->show_ui(true);
+                        if (save_state_manager_) {
+                            auto result = save_state_manager_->load_state(0, get_game_name());
+                            osd_renderer_->show_notification(
+                                result.is_ok() ? "State loaded from slot 0" : "Load failed", 1500);
+                        }
                         continue;
                     case SDLK_F11:
                         handle_menu_action(crayon::MenuAction::Screenshot);
@@ -867,16 +872,26 @@ void SDLFrontend::handle_menu_action(MenuAction action) {
             }
             osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
             break;
-        case MenuAction::SaveState:
-            save_state_manager_->set_game_name(get_game_name());
-            save_state_manager_->set_mode(true); // Save mode
-            save_state_manager_->show_ui(true);
+        case MenuAction::SaveState: {
+            int slot = menu_system_->get_selected_slot();
+            if (slot >= 0 && save_state_manager_) {
+                auto result = save_state_manager_->save_state(slot, get_game_name());
+                osd_renderer_->show_notification(
+                    result.is_ok() ? "State saved to slot " + std::to_string(slot)
+                                   : "Save failed: " + result.error, 2000);
+            }
             break;
-        case MenuAction::LoadState:
-            save_state_manager_->set_game_name(get_game_name());
-            save_state_manager_->set_mode(false); // Load mode
-            save_state_manager_->show_ui(true);
+        }
+        case MenuAction::LoadState: {
+            int slot = menu_system_->get_selected_slot();
+            if (slot >= 0 && save_state_manager_) {
+                auto result = save_state_manager_->load_state(slot, get_game_name());
+                osd_renderer_->show_notification(
+                    result.is_ok() ? "State loaded from slot " + std::to_string(slot)
+                                   : "Load failed: " + result.error, 2000);
+            }
             break;
+        }
         case MenuAction::Screenshot:
             save_screenshot("screenshot.png");
             osd_renderer_->show_notification("Screenshot saved", 1500);
@@ -911,6 +926,44 @@ void SDLFrontend::handle_menu_action(MenuAction action) {
             break;
         case MenuAction::Quit: 
             running_ = false; 
+            break;
+        // Video settings
+        case MenuAction::ScalingFilterNearest:
+            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+            osd_renderer_->show_notification("Scaling: Nearest", 1500);
+            break;
+        case MenuAction::ScalingFilterLinear:
+            SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+            osd_renderer_->show_notification("Scaling: Linear", 1500);
+            break;
+        case MenuAction::AspectRatioOriginal:
+        case MenuAction::AspectRatio4_3:
+        case MenuAction::AspectRatioStretch:
+            // TODO: implement aspect ratio switching
+            osd_renderer_->show_notification("Aspect ratio (not yet implemented)", 1500);
+            break;
+        // Audio settings
+        case MenuAction::Volume0:  case MenuAction::Volume10: case MenuAction::Volume20:
+        case MenuAction::Volume30: case MenuAction::Volume40: case MenuAction::Volume50:
+        case MenuAction::Volume60: case MenuAction::Volume70: case MenuAction::Volume80:
+        case MenuAction::Volume90: case MenuAction::Volume100: {
+            // TODO: implement volume control in AudioSystem
+            int vol = (static_cast<int>(action) - static_cast<int>(MenuAction::Volume0)) * 10;
+            osd_renderer_->show_notification("Volume: " + std::to_string(vol) + "% (not yet implemented)", 1500);
+            break;
+        }
+        case MenuAction::ToggleMute:
+            audio_muted_ = !audio_muted_;
+            if (audio_device_ > 0)
+                SDL_PauseAudioDevice(audio_device_, audio_muted_ ? 1 : 0);
+            osd_renderer_->show_notification(audio_muted_ ? "Muted" : "Unmuted", 1500);
+            break;
+        // Input settings
+        case MenuAction::SwapJoysticks:
+            joystick_port_swap_ = !joystick_port_swap_;
+            emulator_->get_input_handler().reset_joystick();
+            osd_renderer_->show_notification(
+                joystick_port_swap_ ? "Joystick ports swapped" : "Joystick ports normal", 1500);
             break;
         default: 
             break;

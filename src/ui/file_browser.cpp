@@ -101,26 +101,30 @@ void FileBrowser::render() {
     
     int content_x = margin_x + 10;
     int center_x = margin_x + panel_w / 2;
-    int item_h = 17;
+    int line_h = win_h / 25;  // proportional line height, same as menu
+    int pad = win_h / 80;
     
     // Title
-    int y = margin_y + 12;
-    text_renderer_->render_text(renderer_, "Select File", center_x, y, {255, 255, 255, 255}, TextRenderer::TextAlign::Center);
-    y += item_h + 4;
+    int y = margin_y + pad;
+    text_renderer_->render_text("Select File", center_x, y,
+                                {255, 255, 255, 255}, TextRenderer::FontSize::Large, TextRenderer::TextAlign::Center);
+    y += line_h + 2;
     
     // Current directory (truncate if too long)
     std::string dir_display = current_directory_;
-    int max_dir_chars = panel_w / 7;  // rough estimate
+    int max_dir_chars = panel_w / 7;
     if (static_cast<int>(dir_display.length()) > max_dir_chars) {
         dir_display = "..." + dir_display.substr(dir_display.length() - max_dir_chars + 3);
     }
-    text_renderer_->render_text(renderer_, dir_display.c_str(), content_x, y, {200, 200, 200, 255}, TextRenderer::TextAlign::Left);
-    y += item_h + 4;
+    text_renderer_->render_text(dir_display, content_x, y,
+                                {200, 200, 200, 255}, TextRenderer::FontSize::Small);
+    y += line_h;
     
     // File list area
+    int hint_h = win_h / 20;
     int list_top = y;
-    int list_bottom = margin_y + panel_h - item_h - 10;  // leave room for instructions
-    int visible_items = (list_bottom - list_top) / item_h;
+    int list_bottom = margin_y + panel_h - hint_h;
+    int visible_items = (list_bottom - list_top) / line_h;
     if (visible_items < 1) visible_items = 1;
     
     int start_index = scroll_offset_;
@@ -133,21 +137,23 @@ void FileBrowser::render() {
         // Highlight selected item
         if (i == selected_index_) {
             SDL_SetRenderDrawColor(renderer_, 60, 60, 120, 255);
-            SDL_Rect highlight = {content_x, y - 2, panel_w - 20, item_h};
+            SDL_Rect highlight = {content_x, y - 2, panel_w - 20, line_h};
             SDL_RenderFillRect(renderer_, &highlight);
-            color = {255, 255, 255, 255};
+            color = {255, 255, 100, 255};
         }
         
         // Directory indicator or file name
         std::string display_name = entry.is_directory ? "[" + entry.name + "]" : entry.name;
-        text_renderer_->render_text(renderer_, display_name.c_str(), content_x + 4, y, color, TextRenderer::TextAlign::Left);
+        text_renderer_->render_text(display_name, content_x + 4, y,
+                                    color, TextRenderer::FontSize::Medium);
         
-        y += item_h;
+        y += line_h;
     }
     
     // Instructions
-    text_renderer_->render_text(renderer_, "UP/DOWN: Navigate | ENTER: Select | BACKSPACE: Up | ESC: Cancel", 
-                                center_x, margin_y + panel_h - 10, {150, 150, 150, 255}, TextRenderer::TextAlign::Center);
+    text_renderer_->render_text("Arrows: Move | Enter: Select | Backspace: Up | Esc: Cancel",
+                                center_x, margin_y + panel_h - hint_h,
+                                {150, 150, 150, 255}, TextRenderer::FontSize::Medium, TextRenderer::TextAlign::Center);
 }
 
 void FileBrowser::scan_directory() {

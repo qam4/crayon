@@ -9,6 +9,7 @@
 
 class TextRenderer;
 class ConfigManager;
+class SaveStateManagerUI;
 
 struct MenuItem {
     std::string label;
@@ -35,17 +36,18 @@ public:
     void close() { hide(); }
     bool is_open() const { return visible_; }
     crayon::MenuAction process_input(SDL_Keycode key);
-    crayon::MenuAction get_selected_action() const { return last_action_; }
     int get_selected_slot() const;
     void render();
     void build_main_menu();
     void update_menu_values(ConfigManager* config_manager);
+    void update_save_state_slots(SaveStateManagerUI* save_state_manager, const std::string& game_name);
 
 private:
     void navigate_up();
     void navigate_down();
-    crayon::MenuAction select_current();
+    void select_current();
     void go_back();
+    void render_menu_list(const std::vector<MenuItem>& items, int selected_index);
 
     SDL_Renderer* renderer_;
     TextRenderer* text_renderer_;
@@ -53,8 +55,8 @@ private:
     std::vector<MenuItem>* current_menu_ = nullptr;
     std::stack<std::vector<MenuItem>*> menu_stack_;
     int selected_index_ = 0;
+    int scroll_offset_ = 0;
     int last_selected_slot_ = -1;
-    crayon::MenuAction last_action_ = crayon::MenuAction::None;
     bool visible_ = false;
 };
 

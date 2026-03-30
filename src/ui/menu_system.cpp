@@ -1,6 +1,9 @@
 #include "ui/menu_system.h"
 #include "ui/text_renderer.h"
 #include "ui/config_manager.h"
+#include "ui/save_state_manager.h"
+#include <ctime>
+#include <algorithm>
 
 MenuSystem::MenuSystem(SDL_Renderer* renderer, TextRenderer* text_renderer)
     : renderer_(renderer), text_renderer_(text_renderer) {
@@ -10,210 +13,140 @@ MenuSystem::MenuSystem(SDL_Renderer* renderer, TextRenderer* text_renderer)
 
 MenuSystem::~MenuSystem() = default;
 
-void MenuSystem::show() { visible_ = true; selected_index_ = 0; }
-void MenuSystem::hide() { 
-    visible_ = false; 
-    while (!menu_stack_.empty()) menu_stack_.pop(); 
-    current_menu_ = &main_menu_; 
+void MenuSystem::show() {
+    visible_ = true;
+    current_menu_ = &main_menu_;
     selected_index_ = 0;
+    scroll_offset_ = 0;
+    while (!menu_stack_.empty()) menu_stack_.pop();
 }
 
-crayon::MenuAction MenuSystem::process_input(SDL_Keycode key) {
-    if (!visible_) return crayon::MenuAction::None;
-    
-    switch (key) {
-        case SDLK_UP: navigate_up(); break;
-        case SDLK_DOWN: navigate_down(); break;
-        case SDLK_RETURN: 
-        case SDLK_SPACE: {
-            auto action = select_current();
-            if (action != crayon::MenuAction::None) {
-                hide(); // Close menu after action
-                return action;
-            }
-            break;
-        }
-        case SDLK_ESCAPE: 
-        case SDLK_BACKSPACE:
-            go_back(); 
-            break;
-    }
-    return crayon::MenuAction::None;
-}
-
-int MenuSystem::get_selected_slot() const { return last_selected_slot_; }
-
-void MenuSystem::render() {
-    if (!visible_ || !current_menu_ || !text_renderer_) return;
-    
-    // Get window size
-    int window_width, window_height;
-    SDL_GetRendererOutputSize(renderer_, &window_width, &window_height);
-    
-    // Menu dimensions - compact like Videopac
-    const int menu_width = 300;
-    const int item_height = 17;
-    const int menu_height = static_cast<int>(current_menu_->size()) * item_height + 40;
-    const int menu_x = (window_width - menu_width) / 2;
-    const int menu_y = (window_height - menu_height) / 2;
-    
-    // Draw semi-transparent background overlay
-    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 200);
-    SDL_Rect overlay = {0, 0, window_width, window_height};
-    SDL_RenderFillRect(renderer_, &overlay);
-    
-    // Draw menu background
-    SDL_SetRenderDrawColor(renderer_, 30, 30, 40, 255);
-    SDL_Rect menu_bg = {menu_x, menu_y, menu_width, menu_height};
-    SDL_RenderFillRect(renderer_, &menu_bg);
-    
-    // Draw menu border
-    SDL_SetRenderDrawColor(renderer_, 80, 80, 100, 255);
-    SDL_RenderDrawRect(renderer_, &menu_bg);
-    
-    // Draw title
-    SDL_Color title_color = {220, 220, 255, 255};
-    text_renderer_->render_text("Crayon Menu (F1)", menu_x + menu_width / 2, menu_y + 6, 
-                                title_color, TextRenderer::FontSize::Small, 
-                                TextRenderer::TextAlign::Center);
-    
-    // Draw menu items
-    SDL_Color normal_color = {180, 180, 180, 255};
-    SDL_Color selected_color = {255, 255, 100, 255};
-    SDL_Color disabled_color = {80, 80, 80, 255};
-    
-    for (size_t i = 0; i < current_menu_->size(); ++i) {
-        const auto& item = (*current_menu_)[i];
-        int item_y = menu_y + 24 + static_cast<int>(i) * item_height;
-        
-        // Draw selection highlight
-        if (static_cast<int>(i) == selected_index_) {
-            SDL_SetRenderDrawColor(renderer_, 60, 60, 80, 255);
-            SDL_Rect highlight = {menu_x + 3, item_y - 1, menu_width - 6, item_height - 2};
-            SDL_RenderFillRect(renderer_, &highlight);
-        }
-        
-        // Draw menu item text
-        SDL_Color color = item.enabled ? 
-            (static_cast<int>(i) == selected_index_ ? selected_color : normal_color) : 
-            disabled_color;
-        
-        std::string display_text = item.label;
-        if (!item.value.empty()) {
-            display_text += ": " + item.value;
-        }
-        if (item.has_submenu) {
-            display_text += " >";
-        }
-        
-        text_renderer_->render_text(display_text, menu_x + 15, item_y + 2, color, 
-                                    TextRenderer::FontSize::Small, 
-                                    TextRenderer::TextAlign::Left);
-    }
-    
-    // Draw instructions at bottom
-    SDL_Color instruction_color = {120, 120, 140, 255};
-    text_renderer_->render_text("Up/Down: Navigate  Enter: Select  Esc: Back", 
-                                menu_x + menu_width / 2, menu_y + menu_height - 13, 
-                                instruction_color, TextRenderer::FontSize::Small, 
-                                TextRenderer::TextAlign::Center);
-}
+void MenuSystem::hide() { visible_ = false; }
 
 void MenuSystem::build_main_menu() {
     main_menu_.clear();
-    
-    // File menu with hotkeys
+
     main_menu_.emplace_back("Load BASIC ROM (F2)", crayon::MenuAction::LoadBasicROM);
     main_menu_.emplace_back("Load Monitor ROM (F3)", crayon::MenuAction::LoadMonitorROM);
     main_menu_.emplace_back("Load Cartridge (F4)", crayon::MenuAction::LoadCartridge);
     main_menu_.emplace_back("Load K7 Cassette (F6)", crayon::MenuAction::LoadK7);
-    
-    // Emulation control
     main_menu_.emplace_back("Reset (F7)", crayon::MenuAction::Reset);
     main_menu_.emplace_back("Pause/Resume (F8)", crayon::MenuAction::Pause);
-    
-    // Save states submenu
-    MenuItem save_state_menu("Save State (F9)", crayon::MenuAction::None);
-    save_state_menu.has_submenu = true;
+
+    // Save state submenu
+    MenuItem save_menu("Save State (F9=Slot 0)", crayon::MenuAction::None);
+    save_menu.has_submenu = true;
     for (int i = 0; i < 10; ++i) {
-        MenuItem slot("Slot " + std::to_string(i) + " (" + std::to_string(i) + ")", crayon::MenuAction::SaveState);
+        MenuItem slot("Slot " + std::to_string(i), crayon::MenuAction::SaveState);
         slot.slot_number = i;
-        save_state_menu.submenu.push_back(slot);
+        save_menu.submenu.push_back(slot);
     }
-    main_menu_.push_back(save_state_menu);
-    
-    // Load states submenu
-    MenuItem load_state_menu("Load State (F10)", crayon::MenuAction::None);
-    load_state_menu.has_submenu = true;
+    main_menu_.push_back(save_menu);
+
+    // Load state submenu
+    MenuItem load_menu("Load State (F10=Slot 0)", crayon::MenuAction::None);
+    load_menu.has_submenu = true;
     for (int i = 0; i < 10; ++i) {
-        MenuItem slot("Slot " + std::to_string(i) + " (" + std::to_string(i) + ")", crayon::MenuAction::LoadState);
+        MenuItem slot("Slot " + std::to_string(i), crayon::MenuAction::LoadState);
         slot.slot_number = i;
-        load_state_menu.submenu.push_back(slot);
+        load_menu.submenu.push_back(slot);
     }
-    main_menu_.push_back(load_state_menu);
-    
-    // Display options
+    main_menu_.push_back(load_menu);
+
+    // Video Settings submenu
+    MenuItem video_menu("Video Settings", crayon::MenuAction::VideoSettings);
+    video_menu.has_submenu = true;
+    {
+        MenuItem scaling("Scaling Filter", crayon::MenuAction::None);
+        scaling.has_submenu = true;
+        scaling.submenu.emplace_back("Nearest", crayon::MenuAction::ScalingFilterNearest);
+        scaling.submenu.emplace_back("Linear", crayon::MenuAction::ScalingFilterLinear);
+        video_menu.submenu.push_back(scaling);
+
+        MenuItem aspect("Aspect Ratio", crayon::MenuAction::None);
+        aspect.has_submenu = true;
+        aspect.submenu.emplace_back("Original", crayon::MenuAction::AspectRatioOriginal);
+        aspect.submenu.emplace_back("4:3", crayon::MenuAction::AspectRatio4_3);
+        aspect.submenu.emplace_back("Stretch", crayon::MenuAction::AspectRatioStretch);
+        video_menu.submenu.push_back(aspect);
+    }
+    main_menu_.push_back(video_menu);
+
+    // Audio Settings submenu
+    MenuItem audio_menu("Audio Settings", crayon::MenuAction::AudioSettings);
+    audio_menu.has_submenu = true;
+    {
+        MenuItem volume("Volume", crayon::MenuAction::None);
+        volume.has_submenu = true;
+        const crayon::MenuAction vol_actions[] = {
+            crayon::MenuAction::Volume0, crayon::MenuAction::Volume10,
+            crayon::MenuAction::Volume20, crayon::MenuAction::Volume30,
+            crayon::MenuAction::Volume40, crayon::MenuAction::Volume50,
+            crayon::MenuAction::Volume60, crayon::MenuAction::Volume70,
+            crayon::MenuAction::Volume80, crayon::MenuAction::Volume90,
+            crayon::MenuAction::Volume100
+        };
+        for (int i = 0; i <= 10; ++i) {
+            volume.submenu.emplace_back(std::to_string(i * 10) + "%", vol_actions[i]);
+        }
+        audio_menu.submenu.push_back(volume);
+        audio_menu.submenu.emplace_back("Mute", crayon::MenuAction::ToggleMute);
+    }
+    main_menu_.push_back(audio_menu);
+
+    // Input Settings submenu
+    MenuItem input_menu("Input Settings", crayon::MenuAction::InputSettings);
+    input_menu.has_submenu = true;
+    input_menu.submenu.emplace_back("Swap Joystick Ports", crayon::MenuAction::SwapJoysticks);
+    input_menu.submenu.emplace_back("Input Mapping (Ctrl+M)", crayon::MenuAction::InputMapping);
+    main_menu_.push_back(input_menu);
+
     main_menu_.emplace_back("Screenshot (F11)", crayon::MenuAction::Screenshot);
     main_menu_.emplace_back("Toggle FPS (F12)", crayon::MenuAction::ToggleFPS);
     main_menu_.emplace_back("Toggle Fullscreen (Alt+Enter)", crayon::MenuAction::ToggleFullscreen);
     main_menu_.emplace_back("Toggle Debugger (F5)", crayon::MenuAction::ToggleDebugger);
-    
-    // Exit
-    main_menu_.emplace_back("Quit (Esc)", crayon::MenuAction::Quit);
+    main_menu_.emplace_back("Quit", crayon::MenuAction::Quit);
+
+    current_menu_ = &main_menu_;
 }
 
-void MenuSystem::update_menu_values(ConfigManager* config) {
-    if (!config) return;
-    
-    // Update menu items with current config values
-    for (auto& item : main_menu_) {
-        if (item.label == "Toggle FPS") {
-            item.value = config->get_fps_display_enabled() ? "ON" : "OFF";
-        } else if (item.label == "Toggle Fullscreen") {
-            item.value = config->get_fullscreen() ? "ON" : "OFF";
-        }
-    }
-}
-
-void MenuSystem::navigate_up() { 
+void MenuSystem::navigate_up() {
     if (selected_index_ > 0) {
         selected_index_--;
-    } else if (current_menu_ && !current_menu_->empty()) {
-        // Wrap to bottom
-        selected_index_ = static_cast<int>(current_menu_->size()) - 1;
+        if (selected_index_ < scroll_offset_)
+            scroll_offset_ = selected_index_;
     }
 }
 
 void MenuSystem::navigate_down() {
-    if (current_menu_ && selected_index_ < static_cast<int>(current_menu_->size()) - 1) {
+    if (!current_menu_) return;
+    if (selected_index_ < static_cast<int>(current_menu_->size()) - 1) {
         selected_index_++;
-    } else {
-        // Wrap to top
-        selected_index_ = 0;
+
+        int screen_height;
+        SDL_GetRendererOutputSize(renderer_, nullptr, &screen_height);
+        int usable_height = screen_height - 20;  // status bar
+        int margin = usable_height / 24;
+        int title_height = usable_height / 15;
+        int hint_height = usable_height / 20;
+        int line_height = usable_height / 25;
+        int available = usable_height - margin * 2 - title_height - hint_height;
+        int max_visible = available / line_height;
+
+        if (selected_index_ >= scroll_offset_ + max_visible)
+            scroll_offset_ = selected_index_ - max_visible + 1;
     }
 }
 
-crayon::MenuAction MenuSystem::select_current() {
-    if (!current_menu_ || current_menu_->empty()) return crayon::MenuAction::None;
-    if (selected_index_ < 0 || selected_index_ >= static_cast<int>(current_menu_->size())) 
-        return crayon::MenuAction::None;
-    
+void MenuSystem::select_current() {
+    if (!current_menu_ || current_menu_->empty()) return;
     auto& item = (*current_menu_)[selected_index_];
-    
-    if (!item.enabled) return crayon::MenuAction::None;
-    
+    if (!item.enabled) return;
     if (item.has_submenu && !item.submenu.empty()) {
-        // Navigate into submenu
         menu_stack_.push(current_menu_);
         current_menu_ = &item.submenu;
         selected_index_ = 0;
-        return crayon::MenuAction::None;
-    } else {
-        // Execute action
-        last_selected_slot_ = item.slot_number;
-        last_action_ = item.action;
-        return item.action;
+        scroll_offset_ = 0;
     }
 }
 
@@ -222,7 +155,178 @@ void MenuSystem::go_back() {
         current_menu_ = menu_stack_.top();
         menu_stack_.pop();
         selected_index_ = 0;
+        scroll_offset_ = 0;
     } else {
         hide();
+    }
+}
+
+crayon::MenuAction MenuSystem::process_input(SDL_Keycode key) {
+    if (!visible_) return crayon::MenuAction::None;
+
+    switch (key) {
+        case SDLK_UP: navigate_up(); return crayon::MenuAction::None;
+        case SDLK_DOWN: navigate_down(); return crayon::MenuAction::None;
+        case SDLK_RETURN:
+        case SDLK_SPACE:
+            if (current_menu_ && !current_menu_->empty()) {
+                auto& item = (*current_menu_)[selected_index_];
+                if (item.has_submenu) {
+                    select_current();
+                    return crayon::MenuAction::None;
+                } else {
+                    last_selected_slot_ = item.slot_number;
+                    hide();
+                    return item.action;
+                }
+            }
+            return crayon::MenuAction::None;
+        case SDLK_ESCAPE:
+        case SDLK_BACKSPACE:
+            go_back();
+            return crayon::MenuAction::None;
+        default:
+            return crayon::MenuAction::None;
+    }
+}
+
+int MenuSystem::get_selected_slot() const { return last_selected_slot_; }
+
+void MenuSystem::render() {
+    if (!visible_ || !current_menu_) return;
+
+    int screen_width, screen_height;
+    SDL_GetRendererOutputSize(renderer_, &screen_width, &screen_height);
+
+    // Account for the 20px status bar at the bottom
+    static constexpr int STATUS_BAR_HEIGHT = 20;
+    int usable_height = screen_height - STATUS_BAR_HEIGHT;
+
+    // Semi-transparent overlay (only over the emulator area, not the status bar)
+    SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 180);
+    SDL_Rect overlay = {0, 0, screen_width, usable_height};
+    SDL_RenderFillRect(renderer_, &overlay);
+
+    // Menu box — fill most of the usable area with proportional margins
+    int margin = usable_height / 24;
+    int menu_width = screen_width - margin * 2;
+    int menu_height = usable_height - margin * 2;
+    int menu_x = margin;
+    int menu_y = margin;
+
+    SDL_SetRenderDrawColor(renderer_, 40, 40, 40, 255);
+    SDL_Rect menu_box = {menu_x, menu_y, menu_width, menu_height};
+    SDL_RenderFillRect(renderer_, &menu_box);
+    SDL_SetRenderDrawColor(renderer_, 200, 200, 200, 255);
+    SDL_RenderDrawRect(renderer_, &menu_box);
+
+    // Title
+    SDL_Color title_color = {255, 255, 255, 255};
+    std::string title = menu_stack_.empty() ? "Crayon Menu (F1)" : "Menu";
+    int pad = screen_height / 80;
+    text_renderer_->render_text(title, menu_x + pad, menu_y + pad,
+                                title_color, TextRenderer::FontSize::Large);
+
+    // Menu items
+    render_menu_list(*current_menu_, selected_index_);
+
+    // Hints
+    SDL_Color hint_color = {150, 150, 150, 255};
+    std::string hint = menu_stack_.empty()
+        ? "Arrows: Move | Enter: Select | Esc: Close"
+        : "Arrows: Move | Enter: Select | Esc: Back";
+    int hint_pad = screen_height / 60;
+    text_renderer_->render_text(hint, menu_x + hint_pad, menu_y + menu_height - hint_pad - 10,
+                                hint_color, TextRenderer::FontSize::Medium);
+}
+
+void MenuSystem::render_menu_list(const std::vector<MenuItem>& items, int sel_index) {
+    int screen_width, screen_height;
+    SDL_GetRendererOutputSize(renderer_, &screen_width, &screen_height);
+
+    static constexpr int STATUS_BAR_HEIGHT = 20;
+    int usable_height = screen_height - STATUS_BAR_HEIGHT;
+
+    int margin = usable_height / 24;
+    int menu_width = screen_width - margin * 2;
+    int menu_height = usable_height - margin * 2;
+    int menu_x = margin;
+    int menu_y = margin;
+
+    int title_height = screen_height / 15;
+    int hint_height = screen_height / 20;
+    int line_height = screen_height / 25;
+    int available = menu_height - title_height - hint_height;
+    int max_visible = available / line_height;
+
+    int start = scroll_offset_;
+    int end = std::min(start + max_visible, static_cast<int>(items.size()));
+    int item_y = menu_y + title_height;
+    int item_pad = screen_height / 60;
+
+    for (int i = start; i < end; ++i) {
+        const auto& item = items[i];
+        SDL_Color color;
+        if (!item.enabled)
+            color = {100, 100, 100, 255};
+        else if (i == sel_index)
+            color = {255, 255, 100, 255};
+        else
+            color = {200, 200, 200, 255};
+
+        std::string text = item.label;
+        if (item.has_submenu) text += " >";
+        if (!item.value.empty()) text += ": " + item.value;
+
+        text_renderer_->render_text(text, menu_x + item_pad, item_y,
+                                    color, TextRenderer::FontSize::Medium);
+        item_y += line_height;
+    }
+
+    // Scroll indicators
+    SDL_Color arrow_color = {150, 150, 150, 255};
+    if (scroll_offset_ > 0) {
+        text_renderer_->render_text("^", menu_x + menu_width - screen_width / 40,
+                                    menu_y + title_height, arrow_color, TextRenderer::FontSize::Medium);
+    }
+    if (end < static_cast<int>(items.size())) {
+        text_renderer_->render_text("v", menu_x + menu_width - screen_width / 40,
+                                    menu_y + menu_height - hint_height - screen_height / 40,
+                                    arrow_color, TextRenderer::FontSize::Medium);
+    }
+}
+
+void MenuSystem::update_menu_values(ConfigManager* /*config*/) {
+    // Update menu items with current config values if needed
+}
+
+void MenuSystem::update_save_state_slots(SaveStateManagerUI* ssm, const std::string& game_name) {
+    if (!ssm) return;
+
+    std::string display_name = game_name;
+    if (display_name.length() > 15)
+        display_name = display_name.substr(0, 15) + "...";
+
+    auto states = ssm->list_states(game_name);
+
+    for (auto& item : main_menu_) {
+        bool is_save = (item.label.find("Save State") != std::string::npos && item.has_submenu);
+        bool is_load = (item.label.find("Load State") != std::string::npos && item.has_submenu);
+        if (!is_save && !is_load) continue;
+
+        for (size_t i = 0; i < item.submenu.size() && i < states.size(); ++i) {
+            if (states[i].exists) {
+                time_t ts = states[i].timestamp;
+                struct tm* t = localtime(&ts);
+                char buf[32];
+                strftime(buf, sizeof(buf), "%m/%d %H:%M", t);
+                item.submenu[i].value = display_name + " - " + std::string(buf);
+                item.submenu[i].enabled = true;
+            } else {
+                item.submenu[i].value = "[Empty]";
+                item.submenu[i].enabled = is_save;  // Can save to empty, can't load from empty
+            }
+        }
     }
 }

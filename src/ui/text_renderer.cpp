@@ -20,28 +20,30 @@ bool TextRenderer::initialize() {
     // Try to load a system font
     // Common font paths on different systems
     const char* font_paths[] = {
-        // Windows
-        "C:/Windows/Fonts/arial.ttf",
+        // Windows — prefer clean monospace fonts
         "C:/Windows/Fonts/consola.ttf",
+        "C:/Windows/Fonts/cour.ttf",
+        "C:/Windows/Fonts/arial.ttf",
         // Linux
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
         // macOS
+        "/System/Library/Fonts/Menlo.ttc",
         "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial.ttf",
         nullptr
     };
     
     // Try to load fonts from system paths
     for (const char** path = font_paths; *path != nullptr; ++path) {
         if (!font_small_) {
-            font_small_ = TTF_OpenFont(*path, 10);
+            font_small_ = TTF_OpenFont(*path, get_font_size_pixels(FontSize::Small));
         }
         if (!font_medium_) {
-            font_medium_ = TTF_OpenFont(*path, 13);
+            font_medium_ = TTF_OpenFont(*path, get_font_size_pixels(FontSize::Medium));
         }
         if (!font_large_) {
-            font_large_ = TTF_OpenFont(*path, 18);
+            font_large_ = TTF_OpenFont(*path, get_font_size_pixels(FontSize::Large));
         }
         
         // If we loaded all fonts, we're done
@@ -177,11 +179,11 @@ bool TextRenderer::render_text_fallback(const std::string& text, int x, int y,
 
 int TextRenderer::get_font_size_pixels(FontSize size) const {
     switch (size) {
-        case FontSize::Small: return 10;
+        case FontSize::Small: return 11;
         case FontSize::Medium: return 13;
-        case FontSize::Large: return 18;
+        case FontSize::Large: return 16;
     }
-    return 16;
+    return 13;
 }
 
 int TextRenderer::apply_alignment(int x, int text_width, TextAlign align) const {
