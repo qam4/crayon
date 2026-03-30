@@ -151,12 +151,30 @@ AudioState read_audio(BinaryReader& r) {
 void write_input(BinaryWriter& w, const InputState& s) {
     for (int i = 0; i < MO5_KEY_COUNT; ++i)
         w.write_bool(s.keys[i]);
+    // Joystick state (added in version 2)
+    for (int p = 0; p < 2; ++p) {
+        w.write_bool(s.joy[p].up);
+        w.write_bool(s.joy[p].down);
+        w.write_bool(s.joy[p].left);
+        w.write_bool(s.joy[p].right);
+        w.write_bool(s.joy[p].fire);
+    }
 }
 
-InputState read_input(BinaryReader& r) {
+InputState read_input(BinaryReader& r, uint32_t version = 2) {
     InputState s;
     for (int i = 0; i < MO5_KEY_COUNT; ++i)
         s.keys[i] = r.read_bool();
+    // Joystick state (version 2+); old saves default to all-released
+    if (version >= 2) {
+        for (int p = 0; p < 2; ++p) {
+            s.joy[p].up    = r.read_bool();
+            s.joy[p].down  = r.read_bool();
+            s.joy[p].left  = r.read_bool();
+            s.joy[p].right = r.read_bool();
+            s.joy[p].fire  = r.read_bool();
+        }
+    }
     return s;
 }
 
@@ -261,7 +279,7 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     if (magic != MAGIC) return Result<SaveState>::err("Not a Crayon save state file");
 
     uint32_t version = r.read_u32();
-    if (version != CURRENT_VERSION)
+    if (version > CURRENT_VERSION)
         return Result<SaveState>::err("Incompatible save state version");
 
     SaveState state;
@@ -271,7 +289,7 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     state.memory_state = read_memory(r);
     state.pia_state = read_pia(r);
     state.audio_state = read_audio(r);
-    state.input_state = read_input(r);
+    state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
     state.cassette_state = read_cassette(r);
     state.frame_count = r.read_u64();
@@ -326,7 +344,7 @@ Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data,
     if (magic != MAGIC) return Result<SaveState>::err("Not a Crayon save state");
 
     uint32_t version = r.read_u32();
-    if (version != CURRENT_VERSION)
+    if (version > CURRENT_VERSION)
         return Result<SaveState>::err("Incompatible save state version");
 
     SaveState state;
@@ -336,7 +354,7 @@ Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data,
     state.memory_state = read_memory(r);
     state.pia_state = read_pia(r);
     state.audio_state = read_audio(r);
-    state.input_state = read_input(r);
+    state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
     state.cassette_state = read_cassette(r);
     state.frame_count = r.read_u64();

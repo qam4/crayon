@@ -103,6 +103,9 @@ private:
 
     std::unique_ptr<InputMapper> input_mapper_;
     static constexpr int16_t JOYSTICK_AXIS_DEADZONE = 8000;
+
+    bool joystick_port_swap_ = false;
+    void poll_mo5_joystick_input();
 };
 
 } // namespace crayon

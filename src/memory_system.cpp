@@ -3,6 +3,7 @@
 #include "gate_array.h"
 #include "cassette_interface.h"
 #include "audio_system.h"
+#include "input_handler.h"
 #include <cstring>
 #include <fstream>
 #include <iterator>
@@ -171,6 +172,7 @@ void MemorySystem::set_pia(PIA* pia) { pia_ = pia; }
 void MemorySystem::set_gate_array(GateArray* ga) { gate_array_ = ga; }
 void MemorySystem::set_cassette(CassetteInterface* cass) { cassette_ = cass; }
 void MemorySystem::set_audio(AudioSystem* audio) { audio_ = audio; }
+void MemorySystem::set_input_handler(InputHandler* ih) { input_handler_ = ih; }
 
 // ---------------------------------------------------------------------------
 // Game extension PIA (music & games) — minimal 6821 emulation for DAC
@@ -221,16 +223,18 @@ uint8_t MemorySystem::game_pia_read(uint8_t reg) {
 
     switch (mapped) {
         case 0: // Port A
-            if (game_pia_cra_ & 0x04)
-                result = (game_pia_ora_ & game_pia_ddra_) | (0xFF & ~game_pia_ddra_);
+            if (game_pia_cra_ & 0x04) {
+                uint8_t input_pins = input_handler_ ? input_handler_->get_joystick_port_a() : 0xFF;
+                result = (game_pia_ora_ & game_pia_ddra_) | (input_pins & ~game_pia_ddra_);
+            }
             else
                 result = game_pia_ddra_;
             break;
         case 1: result = game_pia_cra_; break;
         case 2: // Port B — bits 0-5: DAC output (active), bits 6-7: joystick buttons (pulled high)
             if (game_pia_crb_ & 0x04) {
-                // Input pins: bits 0-5 = 0 (DAC feedback), bits 6-7 = 1 (buttons not pressed)
-                uint8_t input_pins = 0xC0;
+                // Input pins: bits 0-5 = 0 (DAC feedback), bits 6-7 = joystick fire (active low)
+                uint8_t input_pins = input_handler_ ? input_handler_->get_joystick_port_b_fire() : 0xC0;
                 result = (game_pia_orb_ & game_pia_ddrb_) | (input_pins & ~game_pia_ddrb_);
             } else {
                 result = game_pia_ddrb_;

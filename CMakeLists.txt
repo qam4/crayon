@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(crayon_emulator VERSION 0.1.0 LANGUAGES C CXX)
+project(crayon_emulator VERSION 0.2.0 LANGUAGES C CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -29,6 +29,21 @@ option(ENABLE_SDL "Enable SDL2 frontend (requires SDL2)" ON)
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
+include_directories(${CMAKE_BINARY_DIR}/generated)
+
+# Generate version header from CMake project version (single source of truth)
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/version.h.in
+    ${CMAKE_BINARY_DIR}/generated/version.h
+    @ONLY
+)
+
+# Generate libretro info file with version from CMake
+configure_file(
+    ${CMAKE_SOURCE_DIR}/crayon_libretro.info.in
+    ${CMAKE_SOURCE_DIR}/crayon_libretro.info
+    @ONLY
+)
 
 # Source files for core emulator library
 # MO5-specific components (stubs initially, filled in per milestone)
@@ -248,6 +263,8 @@ if(BUILD_TESTS)
         tests/test_perf_properties.cpp
         tests/test_vkeyboard.cpp
         tests/test_vkeyboard_props.cpp
+        tests/test_joystick.cpp
+        tests/test_joystick_props.cpp
     )
     
     target_link_libraries(crayon_tests crayon_core gtest_main rapidcheck)

@@ -11,6 +11,7 @@ EmulatorCore::EmulatorCore(const Configuration& config) : config_(config) {
     memory_.set_gate_array(&gate_array_);
     memory_.set_cassette(&cassette_);
     memory_.set_audio(&audio_);
+    memory_.set_input_handler(&input_);
     pia_.set_input_handler(&input_);
     pia_.set_cassette(&cassette_);
     pia_.set_light_pen(&light_pen_);

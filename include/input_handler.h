@@ -85,8 +85,19 @@ enum class MO5Key : uint8_t {
 // Maximum number of keys (scancodes 0x00-0x39)
 static constexpr int MO5_KEY_COUNT = 58;
 
+// Joystick state for one port — true means pressed, false means released.
+// Active-low encoding is applied only at the PIA read boundary.
+struct JoystickState {
+    bool up    = false;
+    bool down  = false;
+    bool left  = false;
+    bool right = false;
+    bool fire  = false;
+};
+
 struct InputState {
     bool keys[MO5_KEY_COUNT] = {};
+    JoystickState joy[2] = {};
 };
 
 class InputHandler {
@@ -108,8 +119,22 @@ public:
     InputState get_state() const;
     void set_state(const InputState& state);
 
+    // Joystick input — port is 0 (joy1) or 1 (joy2)
+    void set_joystick_direction(int port, bool up, bool down, bool left, bool right);
+    void set_joystick_fire(int port, bool pressed);
+
+    // Read combined Port A byte (bits 0-3 = port1, bits 4-7 = port2, active low)
+    uint8_t get_joystick_port_a() const;
+
+    // Read fire button bits for Port B (bit 6 = port1 fire, bit 7 = port2 fire, active low)
+    uint8_t get_joystick_port_b_fire() const;
+
+    // Clear all joystick state to released
+    void reset_joystick();
+
 private:
     bool keys_[MO5_KEY_COUNT] = {};
+    JoystickState joy_[2] = {};
     std::map<int, MO5Key> key_mapping_;
     void setup_default_mapping();
 };

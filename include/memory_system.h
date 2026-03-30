@@ -12,6 +12,7 @@ class PIA;
 class GateArray;
 class CassetteInterface;
 class AudioSystem;
+class InputHandler;
 
 struct MO5MemoryState {
     // MO5 video RAM: two 8KB pages
@@ -57,6 +58,7 @@ public:
     void set_gate_array(GateArray* ga);
     void set_cassette(CassetteInterface* cass);
     void set_audio(AudioSystem* audio);
+    void set_input_handler(InputHandler* ih);
 
     void insert_cartridge();
     void remove_cartridge();
@@ -71,6 +73,7 @@ private:
     GateArray* gate_array_ = nullptr;
     CassetteInterface* cassette_ = nullptr;
     AudioSystem* audio_ = nullptr;
+    InputHandler* input_handler_ = nullptr;
 
     // Game extension PIA (music & games) — minimal emulation for 6-bit DAC
     uint8_t game_pia_cra_ = 0, game_pia_crb_ = 0;

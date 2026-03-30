@@ -479,6 +479,14 @@ void SDLFrontend::process_input() {
                     handle_menu_action(crayon::MenuAction::InputMapping);
                     continue;
                 }
+                // Ctrl+J = Toggle joystick port swap
+                if (event.key.keysym.sym == SDLK_j && (event.key.keysym.mod & KMOD_CTRL)) {
+                    joystick_port_swap_ = !joystick_port_swap_;
+                    emulator_->get_input_handler().reset_joystick();
+                    osd_renderer_->show_notification(
+                        joystick_port_swap_ ? "Joystick ports swapped" : "Joystick ports normal", 1500);
+                    continue;
+                }
             }
         }
         
@@ -527,6 +535,9 @@ void SDLFrontend::process_input() {
     if (osd_renderer_) {
         osd_renderer_->update(SDL_GetTicks());
     }
+
+    // Poll MO5 joystick input from keyboard and SDL gamepads
+    poll_mo5_joystick_input();
 }
 
 MenuAction SDLFrontend::process_menu() { return MenuAction::None; }
@@ -751,6 +762,61 @@ void SDLFrontend::handle_joystick_axis_event(const SDL_JoyAxisEvent& event) {
             }
             input.set_key_state(mo5_key, active);
         }
+    }
+}
+
+// Poll SDL gamepad state for MO5 joystick emulation.
+// This is separate from the InputMapper joystick-to-keyboard mapping.
+// SDL gamepad 0 → MO5 joystick port 1, gamepad 1 → port 2.
+// Keyboard fallback: arrow keys → joy1 directions, Right Ctrl → joy1 fire.
+// Both sources are OR'd together.
+void SDLFrontend::poll_mo5_joystick_input() {
+    if (!emulator_) return;
+    auto& input = emulator_->get_input_handler();
+
+    // Directions and fire for each MO5 port, accumulated from all sources
+    bool dir_up[2]   = {false, false};
+    bool dir_down[2]  = {false, false};
+    bool dir_left[2]  = {false, false};
+    bool dir_right[2] = {false, false};
+    bool fire[2]      = {false, false};
+
+    // --- Keyboard fallback (joy port 1 only) ---
+    const uint8_t* keys = SDL_GetKeyboardState(nullptr);
+    int kb_port = joystick_port_swap_ ? 1 : 0;
+    if (keys[SDL_SCANCODE_UP])    dir_up[kb_port]    = true;
+    if (keys[SDL_SCANCODE_DOWN])  dir_down[kb_port]  = true;
+    if (keys[SDL_SCANCODE_LEFT])  dir_left[kb_port]  = true;
+    if (keys[SDL_SCANCODE_RIGHT]) dir_right[kb_port] = true;
+    if (keys[SDL_SCANCODE_RCTRL]) fire[kb_port]      = true;
+
+    // --- SDL gamepads (up to 2) ---
+    int num_joysticks = SDL_NumJoysticks();
+    for (int gp = 0; gp < 2 && gp < num_joysticks; ++gp) {
+        SDL_Joystick* joy = SDL_JoystickOpen(gp);
+        if (!joy) continue;
+
+        int mo5_port = joystick_port_swap_ ? (1 - gp) : gp;
+
+        // Read D-pad from hat 0
+        if (SDL_JoystickNumHats(joy) > 0) {
+            uint8_t hat = SDL_JoystickGetHat(joy, 0);
+            if (hat & SDL_HAT_UP)    dir_up[mo5_port]    = true;
+            if (hat & SDL_HAT_DOWN)  dir_down[mo5_port]  = true;
+            if (hat & SDL_HAT_LEFT)  dir_left[mo5_port]  = true;
+            if (hat & SDL_HAT_RIGHT) dir_right[mo5_port] = true;
+        }
+
+        // Fire = button 0
+        if (SDL_JoystickNumButtons(joy) > 0) {
+            if (SDL_JoystickGetButton(joy, 0)) fire[mo5_port] = true;
+        }
+    }
+
+    // Write combined state to InputHandler
+    for (int p = 0; p < 2; ++p) {
+        input.set_joystick_direction(p, dir_up[p], dir_down[p], dir_left[p], dir_right[p]);
+        input.set_joystick_fire(p, fire[p]);
     }
 }
 

@@ -4,6 +4,7 @@
 #include "vkeyboard.h"
 #include "char_mapping.h"
 #include "types.h"
+#include "version.h"
 #include <cstring>
 #include <cstdio>
 #include <fstream>
@@ -25,6 +26,7 @@ static retro_log_printf_t log_cb;
 
 static crayon::VirtualKeyboard g_vkb;
 static bool g_select_prev = false;          // Edge detection for SELECT toggle
+static bool g_joystick_port_swap = false;
 
 // VKB edge detection state
 static bool g_vkb_prev_up = false;
@@ -56,6 +58,7 @@ static struct retro_variable core_options[] = {
     { "crayon_autoload_k7", "Auto-Load K7 Cassette; LOAD and RUN|LOAD only|Off" },
     { "crayon_vkb_transparency", "Virtual Keyboard Transparency; Opaque|Semi-Transparent|Transparent" },
     { "crayon_vkb_position", "Virtual Keyboard Position; Bottom|Top" },
+    { "crayon_joystick_port_swap", "Swap Joystick Ports; disabled|enabled" },
     { nullptr, nullptr }
 };
 
@@ -80,6 +83,11 @@ static struct retro_input_descriptor input_descriptors[] = {
     { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_Y,      "VKB Move Position" },
     { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_SELECT, "Toggle Virtual Keyboard" },
     { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START,  "STOP" },
+    { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,    "Joy2 Up" },
+    { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,  "Joy2 Down" },
+    { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,  "Joy2 Left" },
+    { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT, "Joy2 Right" },
+    { 1, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,     "Joy2 Fire" },
     { 0, 0, 0, 0, nullptr }
 };
 
@@ -272,6 +280,19 @@ static void poll_core_options() {
             g_autoload_k7 = false; g_autoload_run = false;
         }
         if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] Auto-load K7: %s\n", var.value);
+    }
+
+    // Joystick port swap
+    var.key = "crayon_joystick_port_swap";
+    var.value = nullptr;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
+        bool new_swap = (std::strcmp(var.value, "enabled") == 0);
+        if (new_swap != g_joystick_port_swap) {
+            if (g_emulator)
+                g_emulator->get_input_handler().reset_joystick();
+            g_joystick_port_swap = new_swap;
+        }
+        if (log_cb) log_cb(RETRO_LOG_INFO, "[Crayon] Joystick port swap: %s\n", var.value);
     }
 }
 
@@ -499,6 +520,24 @@ static void process_pointer_input() {
     lp.set_button_pressed(pressed);
 }
 
+// ---------------------------------------------------------------------------
+// Helper: process joystick input (always sampled, even when VKB is visible)
+// ---------------------------------------------------------------------------
+static void process_joystick_input() {
+    if (!g_emulator) return;
+    auto& input = g_emulator->get_input_handler();
+    for (int rp = 0; rp < 2; ++rp) {
+        int mo5_port = g_joystick_port_swap ? (1 - rp) : rp;
+        bool up    = input_state_cb(rp, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP) != 0;
+        bool down  = input_state_cb(rp, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN) != 0;
+        bool left  = input_state_cb(rp, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT) != 0;
+        bool right = input_state_cb(rp, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT) != 0;
+        bool fire  = input_state_cb(rp, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B) != 0;
+        input.set_joystick_direction(mo5_port, up, down, left, right);
+        input.set_joystick_fire(mo5_port, fire);
+    }
+}
+
 // ===========================================================================
 // Libretro API implementation
 // ===========================================================================
@@ -516,7 +555,7 @@ RETRO_API unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 RETRO_API void retro_get_system_info(struct retro_system_info* info) {
     std::memset(info, 0, sizeof(*info));
     info->library_name = "Crayon";
-    info->library_version = "0.1.0";
+    info->library_version = CRAYON_VERSION;
     info->valid_extensions = "k7|rom|bin|mo5";
     info->need_fullpath = false;
     info->block_extract = false;
@@ -574,6 +613,7 @@ RETRO_API void retro_run(void) {
     bool kb_active = process_keyboard_input();
     process_retropad_input(kb_active);
     process_pointer_input();
+    process_joystick_input();
 
     // 4. Auto-load K7: inject keystrokes to type LOAD"" and optionally RUN
     if (g_autoload_state != AutoLoadState::Idle && g_autoload_state != AutoLoadState::Done) {
