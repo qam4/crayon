@@ -208,53 +208,40 @@ void SaveStateManagerUI::render_ui(const std::string& /*cartridge_name*/) {
     text_renderer_->render_text(renderer_, "UP/DOWN: Select Slot | ENTER: Confirm | DEL: Delete | ESC: Cancel", 
                                 window_width / 2, 80, gray, TextRenderer::TextAlign::Center);
     
-    // Render save slots in a grid (2 columns, 5 rows)
-    int slot_width = 350;
-    int slot_height = 90;
-    int start_x = 100;
-    int start_y = 120;
-    int spacing = 20;
+    // Render save slots as a single-column scrollable list
+    int slot_height = 28;
+    int slot_spacing = 4;
+    int margin_x = 70;
+    int start_y = 100;
+    int slot_width = window_width - margin_x * 2;
     
     for (int i = 0; i < 10; ++i) {
-        int col = i % 2;
-        int row = i / 2;
-        int x = start_x + col * (slot_width + spacing);
-        int y = start_y + row * (slot_height + spacing);
+        int y = start_y + i * (slot_height + slot_spacing);
+        
+        // Skip if off-screen
+        if (y + slot_height > window_height - 40) break;
         
         const auto& state = cached_states_[i];
         
         // Highlight selected slot
         if (i == selected_slot_) {
             SDL_SetRenderDrawColor(renderer_, 60, 60, 120, 255);
-            SDL_Rect highlight = {x - 5, y - 5, slot_width + 10, slot_height + 10};
+            SDL_Rect highlight = {margin_x - 3, y - 3, slot_width + 6, slot_height + 6};
             SDL_RenderFillRect(renderer_, &highlight);
         }
         
         // Slot box
         SDL_SetRenderDrawColor(renderer_, 50, 50, 50, 255);
-        SDL_Rect slot_box = {x, y, slot_width, slot_height};
+        SDL_Rect slot_box = {margin_x, y, slot_width, slot_height};
         SDL_RenderFillRect(renderer_, &slot_box);
         SDL_SetRenderDrawColor(renderer_, 120, 120, 120, 255);
         SDL_RenderDrawRect(renderer_, &slot_box);
         
-        // Thumbnail
-        SDL_Rect thumb_rect = {x + 5, y + 5, 64, 40};
-        if (state.thumbnail_texture) {
-            SDL_RenderCopy(renderer_, state.thumbnail_texture, nullptr, &thumb_rect);
-        } else {
-            SDL_SetRenderDrawColor(renderer_, 30, 30, 30, 255);
-            SDL_RenderFillRect(renderer_, &thumb_rect);
-        }
-        
-        // Slot info
-        std::string slot_text = "Slot " + std::to_string(i);
+        // Slot info: "Slot N — timestamp" or "Slot N — Empty"
+        std::string slot_text = "Slot " + std::to_string(i) + "  -  " + format_timestamp(state.timestamp);
+        SDL_Color text_color = state.exists ? SDL_Color{220, 220, 220, 255} : SDL_Color{120, 120, 120, 255};
         text_renderer_->render_text(renderer_, slot_text.c_str(), 
-                                    x + 80, y + 10, white, TextRenderer::TextAlign::Left);
-        
-        std::string time_text = format_timestamp(state.timestamp);
-        SDL_Color time_color = state.exists ? SDL_Color{200, 200, 200, 255} : SDL_Color{120, 120, 120, 255};
-        text_renderer_->render_text(renderer_, time_text.c_str(), 
-                                    x + 80, y + 30, time_color, TextRenderer::TextAlign::Left);
+                                    margin_x + 10, y + 6, text_color, TextRenderer::TextAlign::Left);
     }
 }
 
@@ -263,16 +250,13 @@ bool SaveStateManagerUI::process_input(SDL_Keycode key) {
     
     switch (key) {
         case SDLK_UP:
-            if (selected_slot_ >= 2) selected_slot_ -= 2;
+            if (selected_slot_ > 0) selected_slot_--;
             return true;
         case SDLK_DOWN:
-            if (selected_slot_ < 8) selected_slot_ += 2;
+            if (selected_slot_ < 9) selected_slot_++;
             return true;
         case SDLK_LEFT:
-            if (selected_slot_ % 2 == 1) selected_slot_--;
-            return true;
         case SDLK_RIGHT:
-            if (selected_slot_ % 2 == 0 && selected_slot_ < 9) selected_slot_++;
             return true;
         case SDLK_RETURN: {
             action_completed_ = true;
