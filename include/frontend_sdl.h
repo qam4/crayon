@@ -106,6 +106,7 @@ private:
 
     bool joystick_port_swap_ = false;
     void poll_mo5_joystick_input();
+    std::string get_game_name() const;
 };
 
 } // namespace crayon

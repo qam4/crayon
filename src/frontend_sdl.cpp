@@ -219,7 +219,7 @@ void SDLFrontend::render_frame() {
     }
     
     if (save_state_manager_ && save_state_manager_->is_ui_visible()) {
-        save_state_manager_->render_ui("current_game"); // TODO: Get actual game name
+        save_state_manager_->render_ui(get_game_name());
     }
     
     if (message_dialog_ && message_dialog_->is_visible()) {
@@ -374,6 +374,10 @@ void SDLFrontend::process_input() {
             
             if (save_state_manager_ && save_state_manager_->is_ui_visible()) {
                 if (save_state_manager_->process_input(event.key.keysym.sym)) {
+                    if (save_state_manager_->action_completed()) {
+                        osd_renderer_->show_notification(save_state_manager_->last_message(), 2000);
+                        save_state_manager_->clear_action();
+                    }
                     continue;
                 }
             }
@@ -458,10 +462,12 @@ void SDLFrontend::process_input() {
                         osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
                         continue;
                     case SDLK_F9:
+                        save_state_manager_->set_game_name(get_game_name());
                         save_state_manager_->set_mode(true);
                         save_state_manager_->show_ui(true);
                         continue;
                     case SDLK_F10:
+                        save_state_manager_->set_game_name(get_game_name());
                         save_state_manager_->set_mode(false);
                         save_state_manager_->show_ui(true);
                         continue;
@@ -543,6 +549,19 @@ void SDLFrontend::process_input() {
 MenuAction SDLFrontend::process_menu() { return MenuAction::None; }
 void SDLFrontend::show_message(const std::string& msg) { std::cout << msg << "\n"; }
 EmulatorCore* SDLFrontend::get_emulator() { return emulator_.get(); }
+
+std::string SDLFrontend::get_game_name() const {
+    // Derive game name from cassette or cartridge path
+    std::string path = config_.cassette_path;
+    if (path.empty()) path = config_.cartridge_path;
+    if (path.empty()) return "game";
+    // Extract filename without extension
+    auto slash = path.find_last_of("/\\");
+    std::string name = (slash != std::string::npos) ? path.substr(slash + 1) : path;
+    auto dot = name.find_last_of('.');
+    if (dot != std::string::npos) name = name.substr(0, dot);
+    return name;
+}
 
 void SDLFrontend::save_screenshot(const std::string& /*filename*/) {
     // TODO: Implement via stb_image_write
@@ -849,10 +868,12 @@ void SDLFrontend::handle_menu_action(MenuAction action) {
             osd_renderer_->show_notification(paused_ ? "Paused" : "Resumed", 1500);
             break;
         case MenuAction::SaveState:
+            save_state_manager_->set_game_name(get_game_name());
             save_state_manager_->set_mode(true); // Save mode
             save_state_manager_->show_ui(true);
             break;
         case MenuAction::LoadState:
+            save_state_manager_->set_game_name(get_game_name());
             save_state_manager_->set_mode(false); // Load mode
             save_state_manager_->show_ui(true);
             break;

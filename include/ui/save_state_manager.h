@@ -37,9 +37,14 @@ public:
     // UI rendering
     void render_ui(const std::string& cartridge_name);
     bool process_input(SDL_Keycode key);
-    void show_ui(bool show) { show_ui_ = show; }
+    void show_ui(bool show) { show_ui_ = show; if (show) free_thumbnail_textures(); }
     bool is_ui_visible() const { return show_ui_; }
     void set_mode(bool is_save_mode) { is_save_mode_ = is_save_mode; }
+    void set_game_name(const std::string& name) { game_name_ = name; }
+    const std::string& get_game_name() const { return game_name_; }
+    bool action_completed() const { return action_completed_; }
+    std::string last_message() const { return last_message_; }
+    void clear_action() { action_completed_ = false; last_message_.clear(); }
 
 private:
     std::string get_state_filename(const std::string& cartridge_name, int slot);
@@ -60,6 +65,9 @@ private:
     bool is_save_mode_ = true; // true = save, false = load
     int selected_slot_ = 0;
     std::vector<SaveStateInfo> cached_states_;
+    std::string game_name_ = "game";
+    bool action_completed_ = false;
+    std::string last_message_;
 };
 
 #endif // UI_SAVE_STATE_MANAGER_H

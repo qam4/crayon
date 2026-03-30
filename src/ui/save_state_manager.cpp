@@ -173,12 +173,12 @@ std::string SaveStateManagerUI::format_timestamp(std::time_t timestamp) const {
     return oss.str();
 }
 
-void SaveStateManagerUI::render_ui(const std::string& cartridge_name) {
+void SaveStateManagerUI::render_ui(const std::string& /*cartridge_name*/) {
     if (!show_ui_) return;
     
     // Load states if not cached
     if (cached_states_.empty()) {
-        auto states = list_states(cartridge_name);
+        auto states = list_states(game_name_);
         load_thumbnail_textures(states);
     }
     
@@ -274,14 +274,34 @@ bool SaveStateManagerUI::process_input(SDL_Keycode key) {
         case SDLK_RIGHT:
             if (selected_slot_ % 2 == 0 && selected_slot_ < 9) selected_slot_++;
             return true;
-        case SDLK_RETURN:
-            // Perform save or load
-            // This will be handled by the caller
+        case SDLK_RETURN: {
+            action_completed_ = true;
+            if (is_save_mode_) {
+                auto result = save_state(selected_slot_, game_name_);
+                last_message_ = result.is_ok() ? "State saved to slot " + std::to_string(selected_slot_)
+                                               : "Save failed: " + result.error;
+            } else {
+                if (selected_slot_ < static_cast<int>(cached_states_.size()) &&
+                    cached_states_[selected_slot_].exists) {
+                    auto result = load_state(selected_slot_, game_name_);
+                    last_message_ = result.is_ok() ? "State loaded from slot " + std::to_string(selected_slot_)
+                                                   : "Load failed: " + result.error;
+                } else {
+                    last_message_ = "Slot " + std::to_string(selected_slot_) + " is empty";
+                    action_completed_ = false;
+                    return true;
+                }
+            }
             show_ui_ = false;
+            free_thumbnail_textures();
             return true;
+        }
         case SDLK_DELETE:
-            // Delete the selected slot
-            // This will be handled by the caller
+            if (selected_slot_ < static_cast<int>(cached_states_.size()) &&
+                cached_states_[selected_slot_].exists) {
+                delete_state(selected_slot_, game_name_);
+                free_thumbnail_textures();  // Force refresh
+            }
             return true;
         case SDLK_ESCAPE:
             show_ui_ = false;
