@@ -383,8 +383,8 @@ CB9BAE2D,to8-1,to8-1.rom,8192,cartridge,cartridge,not_tested,
 F9278BF7,to9,to9.rom,8192,cartridge,cartridge,not_tested,
 A2731296,to9p-0,to9p-0.rom,8192,cartridge,cartridge,not_tested,
 C52CE315,to9p-1,to9p-1.rom,8192,cartridge,cartridge,not_tested,
-A6A025F2,Top Chrono,Top Chrono (1985) (Loriciels) [a1].k7,34609,k7,LOAD,not_tested,
-0CC96513,Top Chrono,Top Chrono (1985) (Loriciels).k7,36316,k7,LOAD,not_tested,
+A6A025F2,Top Chrono,Top Chrono (1985) (Loriciels) [a1].k7,34609,k7,LOAD,working,Joystick input works
+0CC96513,Top Chrono,Top Chrono (1985) (Loriciels).k7,36316,k7,LOAD,working,Joystick input works
 A951B8C7,Top Gun,Top Gun (1987) (FIL).k7,36652,k7,LOAD,not_tested,
 D9B72731,Torann Mission Blue 5,Torann Mission Blue 5 (198x) (Loriciels).k7,34587,k7,LOAD,not_tested,
 F529BB55,Toutankhamon,Toutankhamon (1985) (No Man's Land) [b1].k7,49152,k7,LOAD,not_tested,
@@ -406,8 +406,8 @@ BD51F0D3,Votez Pour Moi,Votez Pour Moi (1985) (Coktel Vision).k7,31541,k7,LOAD,n
 7CBAE7AA,Voyage au Centre du MO5,Voyage au Centre du MO5 (1985) (Hebdogiciel) (PD).k7,26793,k7,LOAD,not_tested,
 5B6AA9F3,Wizball,Wizball (1988) (FIL).k7,57925,k7,LOAD,not_tested,
 CCA6D3D0,Yahtzee,Yahtzee (1986) (Hebdogiciel) (PD).k7,10652,k7,LOAD,not_tested,
-C6F07EE0,Yeti,Yeti (1984) (Loriciels) [a1].k7,13510,k7,LOAD,not_tested,
-ADE55EC3,Yeti,Yeti (1984) (Loriciels) [b1].k7,11893,k7,LOADM,not_tested,
-C0AE8B53,Yeti,Yeti (1984) (Loriciels).k7,38109,k7,LOAD,not_tested,
+C6F07EE0,Yeti,Yeti (1984) (Loriciels) [a1].k7,13510,k7,LOAD,working,Collect all fruits then reach princess
+ADE55EC3,Yeti,Yeti (1984) (Loriciels) [b1].k7,11893,k7,LOADM,working,
+C0AE8B53,Yeti,Yeti (1984) (Loriciels).k7,38109,k7,LOAD,working,
 7FFB03F5,Yie Ar Kung Fu 2,Yie Ar Kung Fu 2 (1986) (FIL) [a1].k7,32256,k7,LOAD,not_tested,
 574D042C,Yie Ar Kung Fu 2,Yie Ar Kung Fu 2 (1986) (FIL).k7,32886,k7,LOAD,not_tested,
