@@ -47,7 +47,7 @@ void EmulatorCore::reset() {
     frame_count_ = 0;
 }
 
-void EmulatorCore::run_frame() {
+void EmulatorCore::run_frame(bool render) {
     if (!running_ || paused_) return;
 
     master_clock_.clear_frame_complete();
@@ -155,7 +155,8 @@ void EmulatorCore::run_frame() {
     pia_.signal_vsync();
 
     // Render the frame
-    gate_array_.render_frame(memory_.get_pixel_ram(), memory_.get_color_ram());
+    if (render)
+        gate_array_.render_frame(memory_.get_pixel_ram(), memory_.get_color_ram());
     audio_.generate_samples(MasterClock::CYCLES_PER_FRAME);
     frame_count_++;
 }
