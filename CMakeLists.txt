@@ -27,21 +27,21 @@ option(BUILD_STANDALONE "Build standalone emulator" ON)
 option(ENABLE_SDL "Enable SDL2 frontend (requires SDL2)" ON)
 
 # Include directories
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 include_directories(${CMAKE_BINARY_DIR}/generated)
 
 # Generate version header from CMake project version (single source of truth)
 configure_file(
-    ${CMAKE_SOURCE_DIR}/include/version.h.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/version.h.in
     ${CMAKE_BINARY_DIR}/generated/version.h
     @ONLY
 )
 
 # Generate libretro info file with version from CMake
 configure_file(
-    ${CMAKE_SOURCE_DIR}/crayon_libretro.info.in
-    ${CMAKE_SOURCE_DIR}/crayon_libretro.info
+    ${CMAKE_CURRENT_SOURCE_DIR}/crayon_libretro.info.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/crayon_libretro.info
     @ONLY
 )
 
@@ -83,7 +83,7 @@ set(UI_SOURCES
 
 # Core emulator library
 add_library(crayon_core STATIC ${CORE_SOURCES})
-target_include_directories(crayon_core PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(crayon_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set_target_properties(crayon_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # GCC < 9 needs -lstdc++fs for <experimental/filesystem>
@@ -198,7 +198,7 @@ endif()
 if(BUILD_LIBRETRO)
     add_library(crayon_libretro SHARED src/libretro.cpp)
     target_link_libraries(crayon_libretro crayon_core)
-    target_include_directories(crayon_libretro PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(crayon_libretro PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
     set_target_properties(crayon_libretro PROPERTIES PREFIX "" OUTPUT_NAME "crayon_libretro")
     if(NOT WIN32)
         target_compile_options(crayon_libretro PRIVATE -fvisibility=hidden)
@@ -214,7 +214,7 @@ if(BUILD_STANDALONE AND TARGET crayon)
 endif()
 if(BUILD_LIBRETRO AND TARGET crayon_libretro)
     install(TARGETS crayon_libretro LIBRARY DESTINATION lib RUNTIME DESTINATION lib)
-    install(FILES ${CMAKE_SOURCE_DIR}/crayon_libretro.info DESTINATION lib)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/crayon_libretro.info DESTINATION lib)
 endif()
 
 # Testing
