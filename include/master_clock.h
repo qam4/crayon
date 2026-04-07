@@ -22,6 +22,17 @@ public:
     inline uint32_t get_current_scanline() const;
     inline uint32_t get_scanline_cycle() const;
 
+    // Save/restore state for deterministic reset
+    struct State {
+        uint64_t total_cycles;
+        uint32_t frame_cycle;
+        uint32_t scanline;
+        uint32_t scanline_cycle;
+        bool frame_complete;
+    };
+    State get_state() const;
+    void set_state(const State& s);
+
     static constexpr uint32_t CPU_CLOCK_HZ = 1000000;
     static constexpr uint32_t FRAME_RATE_HZ = 50;
     static constexpr uint32_t CYCLES_PER_FRAME = 20000;

@@ -285,7 +285,20 @@ std::vector<uint8_t> CassetteInterface::serialize_k7(const K7File& file) {
     return out;
 }
 
-CassetteState CassetteInterface::get_state() const { return state_; }
-void CassetteInterface::set_state(const CassetteState& state) { state_ = state; }
+CassetteState CassetteInterface::get_state() const {
+    CassetteState s = state_;
+    s.current_block = current_block_;
+    s.block_byte_pos = block_byte_pos_;
+    s.fast_read_pos = fast_read_pos_;
+    s.fast_bit_pos = fast_bit_pos_;
+    return s;
+}
+void CassetteInterface::set_state(const CassetteState& state) {
+    state_ = state;
+    current_block_ = state.current_block;
+    block_byte_pos_ = state.block_byte_pos;
+    fast_read_pos_ = state.fast_read_pos;
+    fast_bit_pos_ = state.fast_bit_pos;
+}
 
 } // namespace crayon

@@ -55,11 +55,13 @@ public:
     // State
     Result<void> save_state(const std::string& path);
     Result<void> load_state(const std::string& path);
+    Result<void> load_state_from_buffer(const uint8_t* data, size_t size);
 
     bool is_running() const { return running_; }
     bool is_paused() const { return paused_; }
     void set_paused(bool paused) { paused_ = paused; }
     uint64 get_frame_count() const { return frame_count_; }
+    void set_frame_count(uint64 count) { frame_count_ = count; }
 
     // Component access
     CPU6809& get_cpu() { return cpu_; }

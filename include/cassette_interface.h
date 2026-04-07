@@ -34,6 +34,11 @@ struct CassetteState {
     std::vector<uint8_t> record_buffer;
     uint64_t play_start_cycle = 0;   // CPU cycle when play() was called
     uint64_t current_cycle = 0;      // Updated each frame by emulator
+    // Fast cassette loading state
+    size_t current_block = 0;
+    size_t block_byte_pos = 0;
+    size_t fast_read_pos = 0;
+    uint8_t fast_bit_pos = 0;
 };
 
 enum class CassetteLoadMode {

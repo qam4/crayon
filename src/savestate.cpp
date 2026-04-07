@@ -196,6 +196,12 @@ void write_cassette(BinaryWriter& w, const CassetteState& s) {
     w.write_u8(s.bit_position);
     w.write_bool(s.playing); w.write_bool(s.recording);
     w.write_vec(s.record_buffer);
+    w.write_u64(s.play_start_cycle);
+    w.write_u64(s.current_cycle);
+    w.write_u32(static_cast<uint32_t>(s.current_block));
+    w.write_u32(static_cast<uint32_t>(s.block_byte_pos));
+    w.write_u32(static_cast<uint32_t>(s.fast_read_pos));
+    w.write_u8(s.fast_bit_pos);
 }
 
 CassetteState read_cassette(BinaryReader& r) {
@@ -205,6 +211,30 @@ CassetteState read_cassette(BinaryReader& r) {
     s.bit_position = r.read_u8();
     s.playing = r.read_bool(); s.recording = r.read_bool();
     s.record_buffer = r.read_vec();
+    s.play_start_cycle = r.read_u64();
+    s.current_cycle = r.read_u64();
+    s.current_block = r.read_u32();
+    s.block_byte_pos = r.read_u32();
+    s.fast_read_pos = r.read_u32();
+    s.fast_bit_pos = r.read_u8();
+    return s;
+}
+
+void write_master_clock(BinaryWriter& w, const MasterClock::State& s) {
+    w.write_u64(s.total_cycles);
+    w.write_u32(s.frame_cycle);
+    w.write_u32(s.scanline);
+    w.write_u32(s.scanline_cycle);
+    w.write_u8(s.frame_complete ? 1 : 0);
+}
+
+MasterClock::State read_master_clock(BinaryReader& r) {
+    MasterClock::State s;
+    s.total_cycles = r.read_u64();
+    s.frame_cycle = r.read_u32();
+    s.scanline = r.read_u32();
+    s.scanline_cycle = r.read_u32();
+    s.frame_complete = r.read_u8() != 0;
     return s;
 }
 
@@ -237,6 +267,7 @@ Result<void> SaveStateManager::save(const std::string& path, const SaveState& st
     write_input(w, state.input_state);
     write_light_pen(w, state.light_pen_state);
     write_cassette(w, state.cassette_state);
+    write_master_clock(w, state.master_clock_state);
     w.write_u64(state.frame_count);
 
     // Checksum over all data so far
@@ -292,6 +323,9 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
     state.cassette_state = read_cassette(r);
+    if (version >= 3) {
+        state.master_clock_state = read_master_clock(r);
+    }
     state.frame_count = r.read_u64();
 
     if (!r.ok()) return Result<SaveState>::err("Corrupt save state data");
@@ -315,6 +349,7 @@ Result<std::vector<uint8_t>> SaveStateManager::serialize_to_buffer(const SaveSta
     write_input(w, state.input_state);
     write_light_pen(w, state.light_pen_state);
     write_cassette(w, state.cassette_state);
+    write_master_clock(w, state.master_clock_state);
     w.write_u64(state.frame_count);
 
     // Checksum over all data so far
@@ -357,6 +392,9 @@ Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data,
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
     state.cassette_state = read_cassette(r);
+    if (version >= 3) {
+        state.master_clock_state = read_master_clock(r);
+    }
     state.frame_count = r.read_u64();
 
     if (!r.ok()) return Result<SaveState>::err("Corrupt save state data");

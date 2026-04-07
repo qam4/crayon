@@ -183,6 +183,7 @@ Result<void> EmulatorCore::save_state(const std::string& path) {
     state.input_state = input_.get_state();
     state.light_pen_state = light_pen_.get_state();
     state.cassette_state = cassette_.get_state();
+    state.master_clock_state = master_clock_.get_state();
     state.frame_count = frame_count_;
     return SaveStateManager::save(path, state);
 }
@@ -199,6 +200,24 @@ Result<void> EmulatorCore::load_state(const std::string& path) {
     input_.set_state(state.input_state);
     light_pen_.set_state(state.light_pen_state);
     cassette_.set_state(state.cassette_state);
+    master_clock_.set_state(state.master_clock_state);
+    frame_count_ = state.frame_count;
+    return Result<void>::ok();
+}
+
+Result<void> EmulatorCore::load_state_from_buffer(const uint8_t* data, size_t size) {
+    auto result = SaveStateManager::deserialize_from_buffer(data, size);
+    if (result.is_err()) return Result<void>::err(result.error);
+    auto state = *result.value;
+    cpu_.set_state(state.cpu_state);
+    gate_array_.set_state(state.gate_array_state);
+    memory_.set_state(state.memory_state);
+    pia_.set_state(state.pia_state);
+    audio_.set_state(state.audio_state);
+    input_.set_state(state.input_state);
+    light_pen_.set_state(state.light_pen_state);
+    cassette_.set_state(state.cassette_state);
+    master_clock_.set_state(state.master_clock_state);
     frame_count_ = state.frame_count;
     return Result<void>::ok();
 }

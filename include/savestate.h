@@ -10,6 +10,7 @@
 #include "input_handler.h"
 #include "light_pen.h"
 #include "cassette_interface.h"
+#include "master_clock.h"
 #include <vector>
 
 namespace crayon {
@@ -24,6 +25,7 @@ struct SaveState {
     InputState input_state;
     LightPenState light_pen_state;
     CassetteState cassette_state;
+    MasterClock::State master_clock_state;
     uint64 frame_count = 0;
     uint32 checksum = 0;
 };
@@ -38,7 +40,7 @@ public:
     static Result<SaveState> deserialize_from_buffer(const uint8_t* data, size_t size);
 
 private:
-    static constexpr uint32 CURRENT_VERSION = 2;
+    static constexpr uint32 CURRENT_VERSION = 3;
     static uint32 calculate_checksum(const SaveState& state);
     static bool verify_checksum(const SaveState& state);
 };
