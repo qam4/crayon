@@ -11,6 +11,15 @@ struct AudioState {
     bool buzzer_state = false;
     uint32_t sample_accumulator = 0;
     uint32_t host_sample_rate = 48000;
+    uint32_t cycle_counter = 0;
+    uint32_t cycles_since_toggle = 100000;
+    int16_t prev_sample = 0;
+    int16_t dac_sample = 0;
+    bool dac_active = false;
+    size_t write_pos = 0;
+    size_t read_pos = 0;
+    size_t toggle_count = 0;
+    size_t porta_toggle_count = 0;
 };
 
 class AudioSystem {

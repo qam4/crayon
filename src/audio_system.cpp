@@ -110,7 +110,30 @@ size_t AudioSystem::samples_available() const {
     return (write_pos_ >= read_pos_) ? (write_pos_ - read_pos_) : 0;
 }
 
-AudioState AudioSystem::get_state() const { return state_; }
-void AudioSystem::set_state(const AudioState& state) { state_ = state; }
+AudioState AudioSystem::get_state() const {
+    AudioState s = state_;
+    s.cycle_counter = cycle_counter_;
+    s.cycles_since_toggle = cycles_since_toggle_;
+    s.prev_sample = prev_sample_;
+    s.dac_sample = dac_sample_;
+    s.dac_active = dac_active_;
+    s.write_pos = write_pos_;
+    s.read_pos = read_pos_;
+    s.toggle_count = toggle_count_;
+    s.porta_toggle_count = porta_toggle_count_;
+    return s;
+}
+void AudioSystem::set_state(const AudioState& state) {
+    state_ = state;
+    cycle_counter_ = state.cycle_counter;
+    cycles_since_toggle_ = state.cycles_since_toggle;
+    prev_sample_ = state.prev_sample;
+    dac_sample_ = state.dac_sample;
+    dac_active_ = state.dac_active;
+    write_pos_ = state.write_pos;
+    read_pos_ = state.read_pos;
+    toggle_count_ = state.toggle_count;
+    porta_toggle_count_ = state.porta_toggle_count;
+}
 
 } // namespace crayon

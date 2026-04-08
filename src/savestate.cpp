@@ -138,6 +138,15 @@ void write_audio(BinaryWriter& w, const AudioState& s) {
     w.write_bool(s.buzzer_state);
     w.write_u32(s.sample_accumulator);
     w.write_u32(s.host_sample_rate);
+    w.write_u32(s.cycle_counter);
+    w.write_u32(s.cycles_since_toggle);
+    w.write_i16(s.prev_sample);
+    w.write_i16(s.dac_sample);
+    w.write_bool(s.dac_active);
+    w.write_u64(s.write_pos);
+    w.write_u64(s.read_pos);
+    w.write_u64(s.toggle_count);
+    w.write_u64(s.porta_toggle_count);
 }
 
 AudioState read_audio(BinaryReader& r) {
@@ -145,6 +154,15 @@ AudioState read_audio(BinaryReader& r) {
     s.buzzer_state = r.read_bool();
     s.sample_accumulator = r.read_u32();
     s.host_sample_rate = r.read_u32();
+    s.cycle_counter = r.read_u32();
+    s.cycles_since_toggle = r.read_u32();
+    s.prev_sample = r.read_i16();
+    s.dac_sample = r.read_i16();
+    s.dac_active = r.read_bool();
+    s.write_pos = r.read_u64();
+    s.read_pos = r.read_u64();
+    s.toggle_count = r.read_u64();
+    s.porta_toggle_count = r.read_u64();
     return s;
 }
 
