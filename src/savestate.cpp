@@ -149,20 +149,23 @@ void write_audio(BinaryWriter& w, const AudioState& s) {
     w.write_u64(s.porta_toggle_count);
 }
 
-AudioState read_audio(BinaryReader& r) {
+AudioState read_audio(BinaryReader& r, uint32_t version = 3) {
     AudioState s;
     s.buzzer_state = r.read_bool();
     s.sample_accumulator = r.read_u32();
     s.host_sample_rate = r.read_u32();
-    s.cycle_counter = r.read_u32();
-    s.cycles_since_toggle = r.read_u32();
-    s.prev_sample = r.read_i16();
-    s.dac_sample = r.read_i16();
-    s.dac_active = r.read_bool();
-    s.write_pos = r.read_u64();
-    s.read_pos = r.read_u64();
-    s.toggle_count = r.read_u64();
-    s.porta_toggle_count = r.read_u64();
+    // Extended audio fields added in version 3; older saves default to zero.
+    if (version >= 3) {
+        s.cycle_counter = r.read_u32();
+        s.cycles_since_toggle = r.read_u32();
+        s.prev_sample = r.read_i16();
+        s.dac_sample = r.read_i16();
+        s.dac_active = r.read_bool();
+        s.write_pos = r.read_u64();
+        s.read_pos = r.read_u64();
+        s.toggle_count = r.read_u64();
+        s.porta_toggle_count = r.read_u64();
+    }
     return s;
 }
 
@@ -222,19 +225,22 @@ void write_cassette(BinaryWriter& w, const CassetteState& s) {
     w.write_u8(s.fast_bit_pos);
 }
 
-CassetteState read_cassette(BinaryReader& r) {
+CassetteState read_cassette(BinaryReader& r, uint32_t version = 3) {
     CassetteState s;
     s.k7_data = r.read_vec();
     s.read_position = r.read_u32();
     s.bit_position = r.read_u8();
     s.playing = r.read_bool(); s.recording = r.read_bool();
     s.record_buffer = r.read_vec();
-    s.play_start_cycle = r.read_u64();
-    s.current_cycle = r.read_u64();
-    s.current_block = r.read_u32();
-    s.block_byte_pos = r.read_u32();
-    s.fast_read_pos = r.read_u32();
-    s.fast_bit_pos = r.read_u8();
+    // Cycle/block tracking added in version 3; older saves default to zero.
+    if (version >= 3) {
+        s.play_start_cycle = r.read_u64();
+        s.current_cycle = r.read_u64();
+        s.current_block = r.read_u32();
+        s.block_byte_pos = r.read_u32();
+        s.fast_read_pos = r.read_u32();
+        s.fast_bit_pos = r.read_u8();
+    }
     return s;
 }
 
@@ -337,10 +343,10 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     state.gate_array_state = read_gate_array(r);
     state.memory_state = read_memory(r);
     state.pia_state = read_pia(r);
-    state.audio_state = read_audio(r);
+    state.audio_state = read_audio(r, version);
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
-    state.cassette_state = read_cassette(r);
+    state.cassette_state = read_cassette(r, version);
     if (version >= 3) {
         state.master_clock_state = read_master_clock(r);
     }
@@ -406,10 +412,10 @@ Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data,
     state.gate_array_state = read_gate_array(r);
     state.memory_state = read_memory(r);
     state.pia_state = read_pia(r);
-    state.audio_state = read_audio(r);
+    state.audio_state = read_audio(r, version);
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
-    state.cassette_state = read_cassette(r);
+    state.cassette_state = read_cassette(r, version);
     if (version >= 3) {
         state.master_clock_state = read_master_clock(r);
     }
