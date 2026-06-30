@@ -31,6 +31,17 @@ struct MO5MemoryState {
     bool monitor_rom_loaded = false;
     uint8_t video_page = 0;             // 0=fond(color), 1=forme(shape) — bit 0 of gate array reg
     uint8_t gate_array_reg = 0;         // 0xA7C0 system register (bits 0-4,6 writable)
+    // Game extension PIA (music & games, 6-bit DAC) register latches. These
+    // live as MemorySystem members; mirrored here so get_state/set_state (and
+    // thus save/restore) capture them.
+    uint8_t game_pia_cra = 0, game_pia_crb = 0;
+    uint8_t game_pia_ddra = 0, game_pia_ddrb = 0;
+    uint8_t game_pia_ora = 0, game_pia_orb = 0;
+    // Transient (NOT serialized): set false when this state was deserialized
+    // from a pre-v4 save that lacks the v4-only fields above (video_page,
+    // gate_array_reg, game_pia_*). set_state uses it to avoid clobbering live
+    // hardware with their zero-defaults. Always true for live/v4 states.
+    bool has_v4_fields = true;
 };
 
 class MemorySystem {

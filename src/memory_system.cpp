@@ -250,7 +250,56 @@ void MemorySystem::insert_cartridge() { state_.cartridge_inserted = true; }
 void MemorySystem::remove_cartridge() { state_.cartridge_inserted = false; }
 bool MemorySystem::has_cartridge() const { return state_.cartridge_inserted; }
 
-MO5MemoryState MemorySystem::get_state() const { return state_; }
-void MemorySystem::set_state(const MO5MemoryState& state) { state_ = state; }
+MO5MemoryState MemorySystem::get_state() const {
+    MO5MemoryState s = state_;
+    s.game_pia_cra = game_pia_cra_;
+    s.game_pia_crb = game_pia_crb_;
+    s.game_pia_ddra = game_pia_ddra_;
+    s.game_pia_ddrb = game_pia_ddrb_;
+    s.game_pia_ora = game_pia_ora_;
+    s.game_pia_orb = game_pia_orb_;
+    return s;
+}
+void MemorySystem::set_state(const MO5MemoryState& state) {
+    // The system ROMs (basic_rom, monitor_rom) are immutable and deliberately
+    // NOT serialized (they are loaded from files at boot). But assigning the
+    // whole struct below would overwrite the live ROMs with the deserialized
+    // state's zero-filled arrays — wiping them. The MO5 character font lives in
+    // the monitor ROM, so that made all text/HUD glyphs render as blanks after
+    // a load_state. Preserve the live ROM contents across the assignment.
+    static_assert(sizeof(state_.basic_rom) == 0x3000, "basic_rom size");
+    static_assert(sizeof(state_.monitor_rom) == 0x1000, "monitor_rom size");
+    uint8_t saved_basic[0x3000];
+    uint8_t saved_monitor[0x1000];
+    std::memcpy(saved_basic, state_.basic_rom, sizeof(saved_basic));
+    std::memcpy(saved_monitor, state_.monitor_rom, sizeof(saved_monitor));
+
+    if (state.has_v4_fields) {
+        state_ = state;
+        game_pia_cra_ = state.game_pia_cra;
+        game_pia_crb_ = state.game_pia_crb;
+        game_pia_ddra_ = state.game_pia_ddra;
+        game_pia_ddrb_ = state.game_pia_ddrb;
+        game_pia_ora_ = state.game_pia_ora;
+        game_pia_orb_ = state.game_pia_orb;
+    } else {
+        // Pre-v4 save: it lacks video_page, gate_array_reg and the game
+        // extension PIA latches. Those parse as 0; applying them would clobber
+        // live hardware. The game/sound extension PIA carries the joystick I/O
+        // state, so zeroing it freezes input after load. Keep the live values
+        // (this is exactly what pre-v4 code did, since these weren't restored).
+        uint8_t live_video_page = state_.video_page;
+        uint8_t live_gate_array_reg = state_.gate_array_reg;
+        state_ = state;
+        state_.video_page = live_video_page;
+        state_.gate_array_reg = live_gate_array_reg;
+        // game_pia_* members intentionally left untouched (preserve live).
+    }
+    state_.has_v4_fields = true;  // normalize: live state is always complete
+
+    // Restore the immutable ROMs (never carried in the save).
+    std::memcpy(state_.basic_rom, saved_basic, sizeof(saved_basic));
+    std::memcpy(state_.monitor_rom, saved_monitor, sizeof(saved_monitor));
+}
 
 } // namespace crayon

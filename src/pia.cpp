@@ -111,6 +111,18 @@ void PIA::acknowledge_vsync() {
 }
 
 PIAState PIA::get_state() const { return state_; }
-void PIA::set_state(const PIAState& state) { state_ = state; }
+void PIA::set_state(const PIAState& state) {
+    if (state.has_v4_fields) {
+        state_ = state;
+    } else {
+        // Pre-v4 save lacks buzzer_bit/cass_out_bit (audio); keep live values.
+        bool live_buzzer = state_.buzzer_bit;
+        bool live_cass = state_.cass_out_bit;
+        state_ = state;
+        state_.buzzer_bit = live_buzzer;
+        state_.cass_out_bit = live_cass;
+    }
+    state_.has_v4_fields = true;
+}
 
 } // namespace crayon

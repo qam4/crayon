@@ -82,14 +82,19 @@ void write_gate_array(BinaryWriter& w, const GateArrayState& s) {
     w.write_u64(s.frame_number);
     w.write_bool(s.frame_complete); w.write_bool(s.vsync_flag);
     w.write_u8(s.border_color);
+    w.write_bool(s.xrgb_mode);
 }
 
-GateArrayState read_gate_array(BinaryReader& r) {
+GateArrayState read_gate_array(BinaryReader& r, uint32_t version = 4) {
     GateArrayState s;
     s.beam_x = r.read_u16(); s.beam_y = r.read_u16();
     s.frame_number = r.read_u64();
     s.frame_complete = r.read_bool(); s.vsync_flag = r.read_bool();
     s.border_color = r.read_u8();
+    if (version >= 4) {
+        s.xrgb_mode = r.read_bool();
+    }
+    s.has_v4_fields = (version >= 4);
     return s;
 }
 
@@ -101,9 +106,22 @@ void write_memory(BinaryWriter& w, const MO5MemoryState& s) {
     w.write_bool(s.basic_rom_loaded);
     w.write_bool(s.monitor_rom_loaded);
     w.write_vec(s.cartridge_rom);
+    // Video bank-select state (added v4). Without these, video_page and
+    // gate_array_reg reset to 0 on load: the game's per-frame HUD redraw then
+    // writes to the wrong video bank and the bonus/score HUD fails to render
+    // after a load_state (RAM is otherwise identical). See the save-state
+    // determinism test.
+    w.write_u8(s.video_page);
+    w.write_u8(s.gate_array_reg);
+    w.write_u8(s.game_pia_cra);
+    w.write_u8(s.game_pia_crb);
+    w.write_u8(s.game_pia_ddra);
+    w.write_u8(s.game_pia_ddrb);
+    w.write_u8(s.game_pia_ora);
+    w.write_u8(s.game_pia_orb);
 }
 
-MO5MemoryState read_memory(BinaryReader& r) {
+MO5MemoryState read_memory(BinaryReader& r, uint32_t version = 4) {
     MO5MemoryState s;
     r.read_bytes(s.video_ram, sizeof(s.video_ram));
     r.read_bytes(s.user_ram, sizeof(s.user_ram));
@@ -111,6 +129,19 @@ MO5MemoryState read_memory(BinaryReader& r) {
     s.basic_rom_loaded = r.read_bool();
     s.monitor_rom_loaded = r.read_bool();
     s.cartridge_rom = r.read_vec();
+    // Video bank-select state (v4+). Older saves lack it and default to 0
+    // (the pre-fix behaviour).
+    if (version >= 4) {
+        s.video_page = r.read_u8();
+        s.gate_array_reg = r.read_u8();
+        s.game_pia_cra = r.read_u8();
+        s.game_pia_crb = r.read_u8();
+        s.game_pia_ddra = r.read_u8();
+        s.game_pia_ddrb = r.read_u8();
+        s.game_pia_ora = r.read_u8();
+        s.game_pia_orb = r.read_u8();
+    }
+    s.has_v4_fields = (version >= 4);
     return s;
 }
 
@@ -121,9 +152,11 @@ void write_pia(BinaryWriter& w, const PIAState& s) {
     w.write_u8(s.input_pins_a); w.write_u8(s.input_pins_b);
     w.write_bool(s.irqa1_flag); w.write_bool(s.irqa2_flag);
     w.write_bool(s.irqb1_flag); w.write_bool(s.irqb2_flag);
+    w.write_bool(s.buzzer_bit);
+    w.write_bool(s.cass_out_bit);
 }
 
-PIAState read_pia(BinaryReader& r) {
+PIAState read_pia(BinaryReader& r, uint32_t version = 4) {
     PIAState s;
     s.dra = r.read_u8(); s.ddra = r.read_u8(); s.cra = r.read_u8();
     s.drb = r.read_u8(); s.ddrb = r.read_u8(); s.crb = r.read_u8();
@@ -131,6 +164,11 @@ PIAState read_pia(BinaryReader& r) {
     s.input_pins_a = r.read_u8(); s.input_pins_b = r.read_u8();
     s.irqa1_flag = r.read_bool(); s.irqa2_flag = r.read_bool();
     s.irqb1_flag = r.read_bool(); s.irqb2_flag = r.read_bool();
+    if (version >= 4) {
+        s.buzzer_bit = r.read_bool();
+        s.cass_out_bit = r.read_bool();
+    }
+    s.has_v4_fields = (version >= 4);
     return s;
 }
 
@@ -340,9 +378,9 @@ Result<SaveState> SaveStateManager::load(const std::string& path) {
     SaveState state;
     state.version = version;
     state.cpu_state = read_cpu(r);
-    state.gate_array_state = read_gate_array(r);
-    state.memory_state = read_memory(r);
-    state.pia_state = read_pia(r);
+    state.gate_array_state = read_gate_array(r, version);
+    state.memory_state = read_memory(r, version);
+    state.pia_state = read_pia(r, version);
     state.audio_state = read_audio(r, version);
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);
@@ -409,9 +447,9 @@ Result<SaveState> SaveStateManager::deserialize_from_buffer(const uint8_t* data,
     SaveState state;
     state.version = version;
     state.cpu_state = read_cpu(r);
-    state.gate_array_state = read_gate_array(r);
-    state.memory_state = read_memory(r);
-    state.pia_state = read_pia(r);
+    state.gate_array_state = read_gate_array(r, version);
+    state.memory_state = read_memory(r, version);
+    state.pia_state = read_pia(r, version);
     state.audio_state = read_audio(r, version);
     state.input_state = read_input(r, version);
     state.light_pen_state = read_light_pen(r);

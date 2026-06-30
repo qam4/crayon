@@ -21,6 +21,9 @@ struct PIAState {
     bool irqb1_flag = false, irqb2_flag = false;
     bool buzzer_bit = false;
     bool cass_out_bit = false;
+    // Transient (NOT serialized): false when deserialized from a pre-v4 save
+    // lacking buzzer_bit/cass_out_bit. set_state preserves live values then.
+    bool has_v4_fields = true;
 };
 
 class PIA {

@@ -15,6 +15,9 @@ struct GateArrayState {
     bool vsync_flag = false;
     uint8_t border_color = 0;
     bool xrgb_mode = false;
+    // Transient (NOT serialized): false when deserialized from a pre-v4 save
+    // lacking xrgb_mode. set_state preserves the live value then.
+    bool has_v4_fields = true;
 };
 
 class GateArray {

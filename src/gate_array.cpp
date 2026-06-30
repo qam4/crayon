@@ -44,6 +44,16 @@ bool GateArray::vsync_triggered() const { return state_.vsync_flag; }
 void GateArray::clear_vsync() { state_.vsync_flag = false; }
 
 GateArrayState GateArray::get_state() const { return state_; }
-void GateArray::set_state(const GateArrayState& state) { state_ = state; }
+void GateArray::set_state(const GateArrayState& state) {
+    if (state.has_v4_fields) {
+        state_ = state;
+    } else {
+        // Pre-v4 save lacks xrgb_mode (palette select); keep the live value.
+        bool live_xrgb = state_.xrgb_mode;
+        state_ = state;
+        state_.xrgb_mode = live_xrgb;
+    }
+    state_.has_v4_fields = true;
+}
 
 } // namespace crayon

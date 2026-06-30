@@ -40,7 +40,7 @@ public:
     static Result<SaveState> deserialize_from_buffer(const uint8_t* data, size_t size);
 
 private:
-    static constexpr uint32 CURRENT_VERSION = 3;
+    static constexpr uint32 CURRENT_VERSION = 4;
     static uint32 calculate_checksum(const SaveState& state);
     static bool verify_checksum(const SaveState& state);
 };
